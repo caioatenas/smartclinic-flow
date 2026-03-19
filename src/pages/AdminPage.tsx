@@ -7,8 +7,8 @@ const AdminPage = () => {
   const { doctors, specialties, tickets } = useClinic();
 
   const totalToday = tickets.length;
-  const waiting = tickets.filter(t => t.status === 'waiting').length;
-  const completed = tickets.filter(t => t.status === 'completed').length;
+  const waiting = tickets.filter(t => t.status === 'aguardando_recepcao' || t.status === 'aguardando_medico').length;
+  const completed = tickets.filter(t => t.status === 'finalizado').length;
 
   return (
     <div className="min-h-screen bg-background p-6">
