@@ -50,7 +50,7 @@ const AdminPage = () => {
           <div className="space-y-3">
             {doctors.map(d => {
               const spec = specialties.find(s => s.id === d.specialtyId);
-              const queueCount = tickets.filter(t => t.doctorId === d.id && t.status === 'waiting').length;
+              const queueCount = tickets.filter(t => t.doctorId === d.id && t.status === 'aguardando_medico').length;
               return (
                 <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
