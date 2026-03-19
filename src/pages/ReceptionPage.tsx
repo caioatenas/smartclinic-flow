@@ -8,34 +8,41 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 const ReceptionPage = () => {
   const navigate = useNavigate();
-  const { tickets, specialties, doctors, callNext, registerPatient, assignDoctor } = useClinic();
+  const { tickets, specialties, callNextReception, registerPatientAndForward } = useClinic();
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
 
-  const waiting = tickets
-    .filter(t => t.status === 'waiting')
+  const waitingReception = tickets
+    .filter(t => t.status === 'aguardando_recepcao')
     .sort((a, b) => {
       if (a.priority === 'priority' && b.priority !== 'priority') return -1;
       if (b.priority === 'priority' && a.priority !== 'priority') return 1;
       return a.createdAt.getTime() - b.createdAt.getTime();
     });
 
-  const inProgress = tickets.filter(t => t.status === 'in_progress');
+  const inReception = tickets.filter(t => t.status === 'em_atendimento_recepcao');
+  const waitingDoctor = tickets.filter(t => t.status === 'aguardando_medico');
   const getSpecialty = (id: string) => specialties.find(s => s.id === id);
+
+  const handleCallNext = () => {
+    const called = callNextReception();
+    if (called) {
+      setSelectedTicket(called.id);
+      setName('');
+      setCpf('');
+      setPhone('');
+    }
+  };
 
   const handleRegister = () => {
     if (!selectedTicket || !name) return;
-    registerPatient(selectedTicket, name, cpf || undefined, phone || undefined);
+    registerPatientAndForward(selectedTicket, name, cpf || undefined, phone || undefined);
     setSelectedTicket(null);
     setName('');
     setCpf('');
     setPhone('');
-  };
-
-  const handleCallNext = (specialtyId?: string) => {
-    callNext(specialtyId);
   };
 
   return (
@@ -46,49 +53,64 @@ const ReceptionPage = () => {
         </button>
         <Activity className="w-6 h-6 text-accent" />
         <h1 className="text-2xl font-bold text-foreground">Recepção</h1>
-        <Button onClick={() => handleCallNext()} className="ml-auto bg-accent text-accent-foreground hover:bg-accent/90">
+        <Button onClick={handleCallNext} className="ml-auto bg-accent text-accent-foreground hover:bg-accent/90" disabled={waitingReception.length === 0}>
           Chamar Próximo
         </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Em Atendimento */}
+        {/* Em Atendimento na Recepção */}
         <div className="panel-card bg-card border border-border">
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-            <span className="pulse-dot bg-accent" /> Em Atendimento ({inProgress.length})
+            <span className="pulse-dot bg-accent" /> Na Recepção ({inReception.length})
           </h2>
           <div className="space-y-3">
-            {inProgress.map(t => (
-              <div key={t.id} className="bg-accent/10 rounded-lg p-4 border border-accent/20">
+            {inReception.map(t => (
+              <div
+                key={t.id}
+                className="bg-accent/10 rounded-lg p-4 border border-accent/20 cursor-pointer hover:bg-accent/20 transition-colors"
+                onClick={() => { setSelectedTicket(t.id); setName(t.patientName || ''); }}
+              >
                 <div className="flex justify-between items-center">
                   <span className="text-xl font-bold text-accent">{t.code}</span>
-                  <span className="text-sm text-muted-foreground">{t.room}</span>
+                  <span className="text-xs bg-accent/20 text-accent px-2 py-1 rounded-full">Cadastrar</span>
                 </div>
-                <div className="text-foreground font-medium mt-1">{t.patientName || 'Não cadastrado'}</div>
-                <div className="text-sm text-muted-foreground">{getSpecialty(t.specialtyId)?.name}</div>
+                <div className="text-sm text-muted-foreground mt-1">{getSpecialty(t.specialtyId)?.name}</div>
               </div>
             ))}
-            {inProgress.length === 0 && <p className="text-muted-foreground text-sm">Nenhum atendimento em andamento</p>}
+            {inReception.length === 0 && <p className="text-muted-foreground text-sm">Nenhum paciente na recepção</p>}
+          </div>
+
+          {/* Aguardando Médico */}
+          <h2 className="text-lg font-semibold text-foreground mt-6 mb-4 flex items-center gap-2">
+            ✅ Aguardando Médico ({waitingDoctor.length})
+          </h2>
+          <div className="space-y-2">
+            {waitingDoctor.map(t => (
+              <div key={t.id} className="rounded-lg p-3 bg-muted/30">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-primary">{t.code}</span>
+                  <span className="text-xs text-muted-foreground">{t.room}</span>
+                </div>
+                <div className="text-sm text-foreground">{t.patientName}</div>
+                <div className="text-xs text-muted-foreground">{getSpecialty(t.specialtyId)?.name}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Fila de Espera */}
+        {/* Fila de Espera - Recepção */}
         <div className="panel-card bg-card border border-border lg:col-span-2">
           <h2 className="text-lg font-semibold text-foreground mb-4">
-            Fila de Espera ({waiting.length})
+            Fila de Espera - Recepção ({waitingReception.length})
           </h2>
           <div className="space-y-2">
-            {waiting.map(t => (
-              <div
-                key={t.id}
-                className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                onClick={() => { setSelectedTicket(t.id); setName(t.patientName || ''); }}
-              >
+            {waitingReception.map(t => (
+              <div key={t.id} className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
                 <div className={`text-xl font-bold min-w-[70px] ${t.priority === 'priority' ? 'text-warning' : 'text-primary'}`}>
                   {t.code}
                 </div>
                 <div className="flex-1">
-                  <div className="font-medium text-foreground">{t.patientName || 'Sem cadastro'}</div>
                   <div className="text-sm text-muted-foreground">{getSpecialty(t.specialtyId)?.name}</div>
                 </div>
                 {t.priority === 'priority' && (
@@ -97,7 +119,7 @@ const ReceptionPage = () => {
                 <ChevronRight className="w-5 h-5 text-muted-foreground" />
               </div>
             ))}
-            {waiting.length === 0 && <p className="text-muted-foreground text-sm text-center py-8">Fila vazia</p>}
+            {waitingReception.length === 0 && <p className="text-muted-foreground text-sm text-center py-8">Fila vazia</p>}
           </div>
         </div>
       </div>
@@ -108,10 +130,15 @@ const ReceptionPage = () => {
           <DialogHeader>
             <DialogTitle>Cadastrar Paciente</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
+          <p className="text-sm text-muted-foreground">
+            Senha: <span className="font-bold text-accent">{tickets.find(t => t.id === selectedTicket)?.code}</span>
+            {' • '}
+            {getSpecialty(tickets.find(t => t.id === selectedTicket)?.specialtyId || '')?.name}
+          </p>
+          <div className="space-y-4 mt-2">
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Nome completo" value={name} onChange={e => setName(e.target.value)} />
+              <Input placeholder="Nome completo *" value={name} onChange={e => setName(e.target.value)} />
             </div>
             <div className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-muted-foreground" />
@@ -122,7 +149,7 @@ const ReceptionPage = () => {
               <Input placeholder="Telefone (opcional)" value={phone} onChange={e => setPhone(e.target.value)} />
             </div>
             <Button onClick={handleRegister} className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={!name}>
-              Cadastrar
+              Cadastrar e Encaminhar ao Médico
             </Button>
           </div>
         </DialogContent>

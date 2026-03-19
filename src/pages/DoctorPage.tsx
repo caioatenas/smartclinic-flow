@@ -10,11 +10,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 const DoctorPage = () => {
   const navigate = useNavigate();
   const { doctorId } = useParams<{ doctorId: string }>();
-  const { doctors, specialties, getDoctorQueue, startAttendance, completeAttendance, addRecord, addPrescription, tickets } = useClinic();
+  const { doctors, specialties, tickets, getDoctorQueue, callNextDoctor, completeAttendance, addRecord, addPrescription } = useClinic();
 
   const doctor = doctors.find(d => d.id === doctorId);
   const specialty = specialties.find(s => s.id === doctor?.specialtyId);
   const queue = doctorId ? getDoctorQueue(doctorId) : [];
+  const currentPatient = tickets.find(t => t.doctorId === doctorId && t.status === 'em_atendimento_medico');
 
   const [complaint, setComplaint] = useState('');
   const [observations, setObservations] = useState('');
@@ -25,11 +26,8 @@ const DoctorPage = () => {
   const [showPrint, setShowPrint] = useState(false);
   const [printData, setPrintData] = useState<any>(null);
 
-  const currentPatient = queue.find(t => t.status === 'in_progress');
-
   const handleCallNext = () => {
-    const next = queue.find(t => t.status === 'waiting');
-    if (next) startAttendance(next.id);
+    if (doctorId) callNextDoctor(doctorId);
   };
 
   const handleFinish = () => {
@@ -76,7 +74,7 @@ const DoctorPage = () => {
           <h1 className="text-2xl font-bold text-foreground">{doctor.name}</h1>
           <p className="text-sm text-muted-foreground">{specialty?.name} • {doctor.room}</p>
         </div>
-        <Button onClick={handleCallNext} className="ml-auto bg-accent text-accent-foreground hover:bg-accent/90" disabled={!!currentPatient}>
+        <Button onClick={handleCallNext} className="ml-auto bg-accent text-accent-foreground hover:bg-accent/90" disabled={!!currentPatient || queue.length === 0}>
           Chamar Próximo
         </Button>
       </div>
@@ -89,7 +87,7 @@ const DoctorPage = () => {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <span className="text-3xl font-bold text-accent">{currentPatient.code}</span>
-                  <h3 className="text-xl font-semibold text-foreground mt-1">{currentPatient.patientName || 'Paciente não cadastrado'}</h3>
+                  <h3 className="text-xl font-semibold text-foreground mt-1">{currentPatient.patientName}</h3>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setShowPrescription(true)} className="gap-2">
@@ -126,17 +124,17 @@ const DoctorPage = () => {
 
         {/* Fila */}
         <div className="panel-card bg-card border border-border">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Sua Fila ({queue.filter(t => t.status === 'waiting').length})</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Aguardando Consulta ({queue.length})</h2>
           <div className="space-y-2">
-            {queue.filter(t => t.status === 'waiting').map(t => (
+            {queue.map(t => (
               <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                 <span className={`font-bold ${t.priority === 'priority' ? 'text-warning' : 'text-primary'}`}>{t.code}</span>
-                <span className="text-sm text-foreground">{t.patientName || 'Sem cadastro'}</span>
+                <span className="text-sm text-foreground">{t.patientName}</span>
                 {t.priority === 'priority' && <span className="text-xs bg-warning/20 text-warning px-2 py-0.5 rounded-full ml-auto">P</span>}
               </div>
             ))}
-            {queue.filter(t => t.status === 'waiting').length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">Fila vazia</p>
+            {queue.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhum paciente aguardando</p>
             )}
           </div>
         </div>

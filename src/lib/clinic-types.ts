@@ -1,5 +1,5 @@
 export type Priority = 'normal' | 'priority';
-export type TicketStatus = 'waiting' | 'in_progress' | 'completed';
+export type TicketStatus = 'aguardando_recepcao' | 'em_atendimento_recepcao' | 'aguardando_medico' | 'em_atendimento_medico' | 'finalizado';
 export type UserRole = 'patient' | 'receptionist' | 'assistant' | 'doctor' | 'admin';
 
 export interface Specialty {
