@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { Ticket, Specialty, Doctor, Priority, MedicalRecord, Prescription, PrescriptionItem } from './clinic-types';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { Ticket, Specialty, Doctor, Priority, MedicalRecord, Prescription } from './clinic-types';
 
 const SPECIALTIES: Specialty[] = [
   { id: '1', name: 'Clínica Geral', icon: '🩺' },
@@ -19,6 +19,43 @@ const DOCTORS: Doctor[] = [
   { id: 'd6', name: 'Dr. Roberto Mendes', specialtyId: '6', room: 'Sala 06' },
 ];
 
+const STORAGE_KEY = 'cliniplus_state';
+const SYNC_CHANNEL = 'cliniplus_sync';
+
+interface StoredState {
+  tickets: (Omit<Ticket, 'createdAt' | 'calledAt'> & { createdAt: string; calledAt?: string })[];
+  records: (Omit<MedicalRecord, 'createdAt'> & { createdAt: string })[];
+  prescriptions: (Omit<Prescription, 'date'> & { date: string })[];
+  normalCounter: number;
+  priorityCounter: number;
+}
+
+function saveState(tickets: Ticket[], records: MedicalRecord[], prescriptions: Prescription[], nc: number, pc: number) {
+  const data: StoredState = {
+    tickets: tickets.map(t => ({ ...t, createdAt: t.createdAt.toISOString(), calledAt: t.calledAt?.toISOString() })),
+    records: records.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })),
+    prescriptions: prescriptions.map(p => ({ ...p, date: p.date.toISOString() })),
+    normalCounter: nc,
+    priorityCounter: pc,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadState(): { tickets: Ticket[]; records: MedicalRecord[]; prescriptions: Prescription[]; normalCounter: number; priorityCounter: number } | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data: StoredState = JSON.parse(raw);
+    return {
+      tickets: data.tickets.map(t => ({ ...t, createdAt: new Date(t.createdAt), calledAt: t.calledAt ? new Date(t.calledAt) : undefined })),
+      records: data.records.map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
+      prescriptions: data.prescriptions.map(p => ({ ...p, date: new Date(p.date) })),
+      normalCounter: data.normalCounter,
+      priorityCounter: data.priorityCounter,
+    };
+  } catch { return null; }
+}
+
 interface ClinicContextType {
   tickets: Ticket[];
   specialties: Specialty[];
@@ -26,15 +63,13 @@ interface ClinicContextType {
   records: MedicalRecord[];
   prescriptions: Prescription[];
   createTicket: (priority: Priority, specialtyId: string) => Ticket;
-  callNext: (specialtyId?: string) => Ticket | null;
-  registerPatient: (ticketId: string, name: string, cpf?: string, phone?: string) => void;
-  assignDoctor: (ticketId: string, doctorId: string) => void;
-  startAttendance: (ticketId: string) => void;
+  callNextReception: () => Ticket | null;
+  registerPatientAndForward: (ticketId: string, name: string, cpf?: string, phone?: string) => void;
+  callNextDoctor: (doctorId: string) => Ticket | null;
   completeAttendance: (ticketId: string) => void;
   addRecord: (record: Omit<MedicalRecord, 'createdAt'>) => void;
   addPrescription: (prescription: Omit<Prescription, 'id' | 'date'>) => void;
-  getCurrentTicket: () => Ticket | undefined;
-  getWaitingTickets: (specialtyId?: string) => Ticket[];
+  getReceptionQueue: () => Ticket[];
   getDoctorQueue: (doctorId: string) => Ticket[];
 }
 
@@ -47,65 +82,117 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const initialized = useRef(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    const saved = loadState();
+    if (saved) {
+      setTickets(saved.tickets);
+      setRecords(saved.records);
+      setPrescriptions(saved.prescriptions);
+      normalCounter = saved.normalCounter;
+      priorityCounter = saved.priorityCounter;
+    }
+  }, []);
+
+  // Persist & broadcast on every change
+  useEffect(() => {
+    if (!initialized.current) return;
+    saveState(tickets, records, prescriptions, normalCounter, priorityCounter);
+    // Broadcast to other tabs
+    try {
+      const bc = new BroadcastChannel(SYNC_CHANNEL);
+      bc.postMessage('sync');
+      bc.close();
+    } catch {}
+  }, [tickets, records, prescriptions]);
+
+  // Listen for changes from other tabs
+  useEffect(() => {
+    const bc = new BroadcastChannel(SYNC_CHANNEL);
+    bc.onmessage = () => {
+      const saved = loadState();
+      if (saved) {
+        setTickets(saved.tickets);
+        setRecords(saved.records);
+        setPrescriptions(saved.prescriptions);
+        normalCounter = saved.normalCounter;
+        priorityCounter = saved.priorityCounter;
+      }
+    };
+    return () => bc.close();
+  }, []);
+
+  const sortByPriority = (list: Ticket[]) =>
+    list.sort((a, b) => {
+      if (a.priority === 'priority' && b.priority !== 'priority') return -1;
+      if (b.priority === 'priority' && a.priority !== 'priority') return 1;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
 
   const createTicket = useCallback((priority: Priority, specialtyId: string) => {
     const prefix = priority === 'priority' ? 'P' : 'N';
     const counter = priority === 'priority' ? ++priorityCounter : ++normalCounter;
     const code = `${prefix}${String(counter).padStart(3, '0')}`;
-    
+
     const ticket: Ticket = {
       id: crypto.randomUUID(),
       code,
       priority,
       specialtyId,
-      status: 'waiting',
+      status: 'aguardando_recepcao',
       createdAt: new Date(),
     };
-
-    // Auto-assign doctor
-    const doctor = DOCTORS.find(d => d.specialtyId === specialtyId);
-    if (doctor) {
-      ticket.doctorId = doctor.id;
-      ticket.room = doctor.room;
-    }
 
     setTickets(prev => [...prev, ticket]);
     return ticket;
   }, []);
 
-  const callNext = useCallback((specialtyId?: string) => {
+  const callNextReception = useCallback(() => {
+    let called: Ticket | null = null;
     setTickets(prev => {
-      const waiting = prev
-        .filter(t => t.status === 'waiting' && (!specialtyId || t.specialtyId === specialtyId))
-        .sort((a, b) => {
-          if (a.priority === 'priority' && b.priority !== 'priority') return -1;
-          if (b.priority === 'priority' && a.priority !== 'priority') return 1;
-          return a.createdAt.getTime() - b.createdAt.getTime();
-        });
-
+      const waiting = sortByPriority(prev.filter(t => t.status === 'aguardando_recepcao'));
       if (waiting.length === 0) return prev;
-
       const next = waiting[0];
-      return prev.map(t => t.id === next.id ? { ...t, status: 'in_progress' as const, calledAt: new Date() } : t);
+      called = { ...next, status: 'em_atendimento_recepcao', calledAt: new Date() };
+      return prev.map(t => t.id === next.id ? called! : t);
     });
-    return null;
+    return called;
   }, []);
 
-  const registerPatient = useCallback((ticketId: string, name: string, cpf?: string, phone?: string) => {
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, patientName: name, patientCpf: cpf, patientPhone: phone } : t));
+  const registerPatientAndForward = useCallback((ticketId: string, name: string, cpf?: string, phone?: string) => {
+    setTickets(prev => prev.map(t => {
+      if (t.id !== ticketId) return t;
+      const doctor = DOCTORS.find(d => d.specialtyId === t.specialtyId);
+      return {
+        ...t,
+        patientName: name,
+        patientCpf: cpf,
+        patientPhone: phone,
+        status: 'aguardando_medico' as const,
+        doctorId: doctor?.id,
+        room: doctor?.room,
+      };
+    }));
   }, []);
 
-  const assignDoctor = useCallback((ticketId: string, doctorId: string) => {
-    const doctor = DOCTORS.find(d => d.id === doctorId);
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, doctorId, room: doctor?.room } : t));
-  }, []);
-
-  const startAttendance = useCallback((ticketId: string) => {
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: 'in_progress' as const, calledAt: new Date() } : t));
+  const callNextDoctor = useCallback((doctorId: string) => {
+    let called: Ticket | null = null;
+    setTickets(prev => {
+      const waiting = sortByPriority(prev.filter(t => t.status === 'aguardando_medico' && t.doctorId === doctorId));
+      if (waiting.length === 0) return prev;
+      const next = waiting[0];
+      called = { ...next, status: 'em_atendimento_medico', calledAt: new Date() };
+      return prev.map(t => t.id === next.id ? called! : t);
+    });
+    return called;
   }, []);
 
   const completeAttendance = useCallback((ticketId: string) => {
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: 'completed' as const } : t));
+    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: 'finalizado' as const } : t));
   }, []);
 
   const addRecord = useCallback((record: Omit<MedicalRecord, 'createdAt'>) => {
@@ -116,38 +203,19 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     setPrescriptions(prev => [...prev, { ...prescription, id: crypto.randomUUID(), date: new Date() }]);
   }, []);
 
-  const getCurrentTicket = useCallback(() => {
-    return tickets.find(t => t.status === 'in_progress');
-  }, [tickets]);
-
-  const getWaitingTickets = useCallback((specialtyId?: string) => {
-    return tickets
-      .filter(t => t.status === 'waiting' && (!specialtyId || t.specialtyId === specialtyId))
-      .sort((a, b) => {
-        if (a.priority === 'priority' && b.priority !== 'priority') return -1;
-        if (b.priority === 'priority' && a.priority !== 'priority') return 1;
-        return a.createdAt.getTime() - b.createdAt.getTime();
-      });
+  const getReceptionQueue = useCallback(() => {
+    return sortByPriority(tickets.filter(t => t.status === 'aguardando_recepcao'));
   }, [tickets]);
 
   const getDoctorQueue = useCallback((doctorId: string) => {
-    return tickets
-      .filter(t => t.doctorId === doctorId && t.status !== 'completed')
-      .sort((a, b) => {
-        if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
-        if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
-        if (a.priority === 'priority' && b.priority !== 'priority') return -1;
-        if (b.priority === 'priority' && a.priority !== 'priority') return 1;
-        return a.createdAt.getTime() - b.createdAt.getTime();
-      });
+    return sortByPriority(tickets.filter(t => t.doctorId === doctorId && t.status === 'aguardando_medico'));
   }, [tickets]);
 
   return (
     <ClinicContext.Provider value={{
       tickets, specialties: SPECIALTIES, doctors: DOCTORS, records, prescriptions,
-      createTicket, callNext, registerPatient, assignDoctor,
-      startAttendance, completeAttendance, addRecord, addPrescription,
-      getCurrentTicket, getWaitingTickets, getDoctorQueue,
+      createTicket, callNextReception, registerPatientAndForward, callNextDoctor,
+      completeAttendance, addRecord, addPrescription, getReceptionQueue, getDoctorQueue,
     }}>
       {children}
     </ClinicContext.Provider>

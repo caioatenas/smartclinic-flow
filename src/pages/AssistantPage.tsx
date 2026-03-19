@@ -2,26 +2,31 @@ import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
 import { ArrowLeft, Activity, Clock } from 'lucide-react';
 
+const statusConfig: Record<string, { label: string; color: string }> = {
+  aguardando_recepcao: { label: 'Aguardando Recepção', color: 'bg-warning/20 text-warning' },
+  em_atendimento_recepcao: { label: 'Na Recepção', color: 'bg-accent/20 text-accent' },
+  aguardando_medico: { label: 'Aguardando Médico', color: 'bg-primary/20 text-primary' },
+  em_atendimento_medico: { label: 'Em Consulta', color: 'bg-accent/20 text-accent' },
+  finalizado: { label: 'Finalizado', color: 'bg-muted text-muted-foreground' },
+};
+
 const AssistantPage = () => {
   const navigate = useNavigate();
   const { tickets, specialties } = useClinic();
 
   const getSpecialty = (id: string) => specialties.find(s => s.id === id);
 
-  const statusConfig = {
-    waiting: { label: 'Aguardando', color: 'bg-warning/20 text-warning' },
-    in_progress: { label: 'Em Atendimento', color: 'bg-accent/20 text-accent' },
-    completed: { label: 'Finalizado', color: 'bg-muted text-muted-foreground' },
-  };
-
   const sorted = [...tickets].sort((a, b) => {
-    const order = { in_progress: 0, waiting: 1, completed: 2 };
-    return order[a.status] - order[b.status] || b.createdAt.getTime() - a.createdAt.getTime();
+    const order: Record<string, number> = { em_atendimento_medico: 0, em_atendimento_recepcao: 1, aguardando_medico: 2, aguardando_recepcao: 3, finalizado: 4 };
+    return (order[a.status] ?? 5) - (order[b.status] ?? 5) || b.createdAt.getTime() - a.createdAt.getTime();
   });
 
-  const waitingCount = tickets.filter(t => t.status === 'waiting').length;
-  const inProgressCount = tickets.filter(t => t.status === 'in_progress').length;
-  const completedCount = tickets.filter(t => t.status === 'completed').length;
+  const counts = {
+    aguardando_recepcao: tickets.filter(t => t.status === 'aguardando_recepcao').length,
+    aguardando_medico: tickets.filter(t => t.status === 'aguardando_medico').length,
+    em_atendimento: tickets.filter(t => t.status === 'em_atendimento_recepcao' || t.status === 'em_atendimento_medico').length,
+    finalizado: tickets.filter(t => t.status === 'finalizado').length,
+  };
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -33,28 +38,30 @@ const AssistantPage = () => {
         <h1 className="text-2xl font-bold text-foreground">Assistente</h1>
       </div>
 
-      {/* Resumo */}
-      <div className="grid grid-cols-3 gap-4 mb-8 max-w-xl">
+      <div className="grid grid-cols-4 gap-4 mb-8 max-w-2xl">
         <div className="panel-card bg-warning/10 text-center">
-          <div className="text-3xl font-bold text-warning">{waitingCount}</div>
-          <div className="text-sm text-muted-foreground">Aguardando</div>
+          <div className="text-3xl font-bold text-warning">{counts.aguardando_recepcao}</div>
+          <div className="text-xs text-muted-foreground">Ag. Recepção</div>
+        </div>
+        <div className="panel-card bg-primary/10 text-center">
+          <div className="text-3xl font-bold text-primary">{counts.aguardando_medico}</div>
+          <div className="text-xs text-muted-foreground">Ag. Médico</div>
         </div>
         <div className="panel-card bg-accent/10 text-center">
-          <div className="text-3xl font-bold text-accent">{inProgressCount}</div>
-          <div className="text-sm text-muted-foreground">Em Atendimento</div>
+          <div className="text-3xl font-bold text-accent">{counts.em_atendimento}</div>
+          <div className="text-xs text-muted-foreground">Em Atendimento</div>
         </div>
         <div className="panel-card bg-muted text-center">
-          <div className="text-3xl font-bold text-muted-foreground">{completedCount}</div>
-          <div className="text-sm text-muted-foreground">Finalizados</div>
+          <div className="text-3xl font-bold text-muted-foreground">{counts.finalizado}</div>
+          <div className="text-xs text-muted-foreground">Finalizados</div>
         </div>
       </div>
 
-      {/* Lista */}
       <div className="panel-card bg-card border border-border max-w-3xl">
         <h2 className="text-lg font-semibold text-foreground mb-4">Todos os Pacientes</h2>
         <div className="space-y-2">
           {sorted.map(t => {
-            const cfg = statusConfig[t.status];
+            const cfg = statusConfig[t.status] || { label: t.status, color: '' };
             return (
               <div key={t.id} className="flex items-center gap-4 p-3 rounded-lg bg-muted/30">
                 <div className={`text-lg font-bold min-w-[70px] ${t.priority === 'priority' ? 'text-warning' : 'text-primary'}`}>
