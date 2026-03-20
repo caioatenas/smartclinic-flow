@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
-import { ArrowLeft, Activity, Phone, User, CreditCard, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Activity, Phone, User, CreditCard, ChevronRight, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatDuration, tempoEsperaAtual } from '@/lib/time-utils';
 
 const ReceptionPage = () => {
   const navigate = useNavigate();
@@ -13,6 +14,13 @@ const ReceptionPage = () => {
   const [name, setName] = useState('');
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
+  const [, setTick] = useState(0);
+
+  // Force re-render every 10s to update wait times
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const waitingReception = tickets
     .filter(t => t.status === 'aguardando_recepcao')
@@ -81,7 +89,6 @@ const ReceptionPage = () => {
             {inReception.length === 0 && <p className="text-muted-foreground text-sm">Nenhum paciente na recepção</p>}
           </div>
 
-          {/* Aguardando Médico */}
           <h2 className="text-lg font-semibold text-foreground mt-6 mb-4 flex items-center gap-2">
             ✅ Aguardando Médico ({waitingDoctor.length})
           </h2>
@@ -112,6 +119,10 @@ const ReceptionPage = () => {
                 </div>
                 <div className="flex-1">
                   <div className="text-sm text-muted-foreground">{getSpecialty(t.specialtyId)?.name}</div>
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  {formatDuration(tempoEsperaAtual(t))}
                 </div>
                 {t.priority === 'priority' && (
                   <span className="text-xs bg-warning/20 text-warning px-2 py-1 rounded-full font-medium">Prioritário</span>

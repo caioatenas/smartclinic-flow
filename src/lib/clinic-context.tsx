@@ -22,17 +22,34 @@ const DOCTORS: Doctor[] = [
 const STORAGE_KEY = 'cliniplus_state';
 const SYNC_CHANNEL = 'cliniplus_sync';
 
+const DATE_FIELDS = ['createdAt', 'calledAt', 'horaChegada', 'horaChamadaRecepcao', 'horaFimRecepcao', 'horaChamadaMedico', 'horaFimAtendimento'] as const;
+
+function serializeTicket(t: Ticket): any {
+  const obj: any = { ...t };
+  for (const f of DATE_FIELDS) {
+    if (obj[f] instanceof Date) obj[f] = obj[f].toISOString();
+  }
+  return obj;
+}
+
+function deserializeTicket(obj: any): Ticket {
+  for (const f of DATE_FIELDS) {
+    if (obj[f]) obj[f] = new Date(obj[f]);
+  }
+  return obj as Ticket;
+}
+
 interface StoredState {
-  tickets: (Omit<Ticket, 'createdAt' | 'calledAt'> & { createdAt: string; calledAt?: string })[];
-  records: (Omit<MedicalRecord, 'createdAt'> & { createdAt: string })[];
-  prescriptions: (Omit<Prescription, 'date'> & { date: string })[];
+  tickets: any[];
+  records: any[];
+  prescriptions: any[];
   normalCounter: number;
   priorityCounter: number;
 }
 
 function saveState(tickets: Ticket[], records: MedicalRecord[], prescriptions: Prescription[], nc: number, pc: number) {
   const data: StoredState = {
-    tickets: tickets.map(t => ({ ...t, createdAt: t.createdAt.toISOString(), calledAt: t.calledAt?.toISOString() })),
+    tickets: tickets.map(serializeTicket),
     records: records.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })),
     prescriptions: prescriptions.map(p => ({ ...p, date: p.date.toISOString() })),
     normalCounter: nc,
@@ -47,7 +64,7 @@ function loadState(): { tickets: Ticket[]; records: MedicalRecord[]; prescriptio
     if (!raw) return null;
     const data: StoredState = JSON.parse(raw);
     return {
-      tickets: data.tickets.map(t => ({ ...t, createdAt: new Date(t.createdAt), calledAt: t.calledAt ? new Date(t.calledAt) : undefined })),
+      tickets: data.tickets.map(deserializeTicket),
       records: data.records.map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
       prescriptions: data.prescriptions.map(p => ({ ...p, date: new Date(p.date) })),
       normalCounter: data.normalCounter,
@@ -84,7 +101,6 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const initialized = useRef(false);
 
-  // Load from localStorage on mount
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -98,11 +114,9 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Persist & broadcast on every change
   useEffect(() => {
     if (!initialized.current) return;
     saveState(tickets, records, prescriptions, normalCounter, priorityCounter);
-    // Broadcast to other tabs
     try {
       const bc = new BroadcastChannel(SYNC_CHANNEL);
       bc.postMessage('sync');
@@ -110,7 +124,6 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [tickets, records, prescriptions]);
 
-  // Listen for changes from other tabs
   useEffect(() => {
     const bc = new BroadcastChannel(SYNC_CHANNEL);
     bc.onmessage = () => {
@@ -137,6 +150,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     const prefix = priority === 'priority' ? 'P' : 'N';
     const counter = priority === 'priority' ? ++priorityCounter : ++normalCounter;
     const code = `${prefix}${String(counter).padStart(3, '0')}`;
+    const now = new Date();
 
     const ticket: Ticket = {
       id: crypto.randomUUID(),
@@ -144,7 +158,8 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       priority,
       specialtyId,
       status: 'aguardando_recepcao',
-      createdAt: new Date(),
+      createdAt: now,
+      horaChegada: now,
     };
 
     setTickets(prev => [...prev, ticket]);
@@ -157,7 +172,8 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       const waiting = sortByPriority(prev.filter(t => t.status === 'aguardando_recepcao'));
       if (waiting.length === 0) return prev;
       const next = waiting[0];
-      called = { ...next, status: 'em_atendimento_recepcao', calledAt: new Date() };
+      const now = new Date();
+      called = { ...next, status: 'em_atendimento_recepcao', calledAt: now, horaChamadaRecepcao: now };
       return prev.map(t => t.id === next.id ? called! : t);
     });
     return called;
@@ -175,6 +191,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
         status: 'aguardando_medico' as const,
         doctorId: doctor?.id,
         room: doctor?.room,
+        horaFimRecepcao: new Date(),
       };
     }));
   }, []);
@@ -185,14 +202,17 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       const waiting = sortByPriority(prev.filter(t => t.status === 'aguardando_medico' && t.doctorId === doctorId));
       if (waiting.length === 0) return prev;
       const next = waiting[0];
-      called = { ...next, status: 'em_atendimento_medico', calledAt: new Date() };
+      const now = new Date();
+      called = { ...next, status: 'em_atendimento_medico', calledAt: now, horaChamadaMedico: now };
       return prev.map(t => t.id === next.id ? called! : t);
     });
     return called;
   }, []);
 
   const completeAttendance = useCallback((ticketId: string) => {
-    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: 'finalizado' as const } : t));
+    setTickets(prev => prev.map(t =>
+      t.id === ticketId ? { ...t, status: 'finalizado' as const, horaFimAtendimento: new Date() } : t
+    ));
   }, []);
 
   const addRecord = useCallback((record: Omit<MedicalRecord, 'createdAt'>) => {

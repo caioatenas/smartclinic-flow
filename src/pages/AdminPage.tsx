@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
-import { ArrowLeft, Activity, Users, Stethoscope, ListChecks } from 'lucide-react';
+import { ArrowLeft, Activity, Users, Stethoscope, ListChecks, Clock, BarChart3 } from 'lucide-react';
+import { calcularMedias, formatDuration } from '@/lib/time-utils';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -9,6 +10,7 @@ const AdminPage = () => {
   const totalToday = tickets.length;
   const waiting = tickets.filter(t => t.status === 'aguardando_recepcao' || t.status === 'aguardando_medico').length;
   const completed = tickets.filter(t => t.status === 'finalizado').length;
+  const metrics = calcularMedias(tickets);
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -41,6 +43,39 @@ const AdminPage = () => {
         </div>
       </div>
 
+      {/* Time Metrics */}
+      <div className="panel-card bg-card border border-border mb-8">
+        <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+          <BarChart3 className="w-5 h-5 text-accent" /> Métricas de Tempo
+        </h2>
+        {metrics ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg bg-muted/30 text-center">
+              <Clock className="w-5 h-5 text-warning mx-auto mb-1" />
+              <div className="text-xl font-bold text-foreground">{formatDuration(metrics.mediaEspera)}</div>
+              <div className="text-xs text-muted-foreground">Tempo médio espera</div>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/30 text-center">
+              <Clock className="w-5 h-5 text-accent mx-auto mb-1" />
+              <div className="text-xl font-bold text-foreground">{formatDuration(metrics.mediaAtendimento)}</div>
+              <div className="text-xs text-muted-foreground">Tempo médio atendimento</div>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/30 text-center">
+              <Clock className="w-5 h-5 text-primary mx-auto mb-1" />
+              <div className="text-xl font-bold text-foreground">{formatDuration(metrics.mediaTotal)}</div>
+              <div className="text-xs text-muted-foreground">Tempo total médio</div>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/30 text-center">
+              <ListChecks className="w-5 h-5 text-accent mx-auto mb-1" />
+              <div className="text-xl font-bold text-foreground">{metrics.totalAtendimentos}</div>
+              <div className="text-xs text-muted-foreground">Atendimentos do dia</div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm text-center py-4">Nenhum atendimento finalizado ainda</p>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Médicos */}
         <div className="panel-card bg-card border border-border">
@@ -51,6 +86,7 @@ const AdminPage = () => {
             {doctors.map(d => {
               const spec = specialties.find(s => s.id === d.specialtyId);
               const queueCount = tickets.filter(t => t.doctorId === d.id && t.status === 'aguardando_medico').length;
+              const doneCount = tickets.filter(t => t.doctorId === d.id && t.status === 'finalizado').length;
               return (
                 <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
@@ -60,7 +96,10 @@ const AdminPage = () => {
                     <div className="font-medium text-foreground">{d.name}</div>
                     <div className="text-sm text-muted-foreground">{spec?.name} • {d.room}</div>
                   </div>
-                  <span className="text-sm bg-accent/10 text-accent px-2 py-1 rounded-full">{queueCount} na fila</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-sm bg-accent/10 text-accent px-2 py-1 rounded-full">{queueCount} na fila</span>
+                    <span className="text-xs text-muted-foreground">{doneCount} atendidos</span>
+                  </div>
                 </div>
               );
             })}

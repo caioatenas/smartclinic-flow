@@ -21,6 +21,12 @@ export interface Ticket {
   doctorId?: string;
   createdAt: Date;
   calledAt?: Date;
+  // Timestamps for time tracking
+  horaChegada: Date;
+  horaChamadaRecepcao?: Date;
+  horaFimRecepcao?: Date;
+  horaChamadaMedico?: Date;
+  horaFimAtendimento?: Date;
 }
 
 export interface Doctor {
