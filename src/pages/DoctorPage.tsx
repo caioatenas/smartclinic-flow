@@ -1,21 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
-import { ArrowLeft, Activity, FileText, Printer } from 'lucide-react';
+import { ArrowLeft, Activity, FileText, Printer, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { formatDuration, tempoEsperaAtual, tempoAteRecepcao, tempoNaRecepcao, tempoEsperaMedico } from '@/lib/time-utils';
 
 const DoctorPage = () => {
   const navigate = useNavigate();
   const { doctorId } = useParams<{ doctorId: string }>();
   const { doctors, specialties, tickets, getDoctorQueue, callNextDoctor, completeAttendance, addRecord, addPrescription } = useClinic();
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const doctor = doctors.find(d => d.id === doctorId);
   const specialty = specialties.find(s => s.id === doctor?.specialtyId);
   const queue = doctorId ? getDoctorQueue(doctorId) : [];
   const currentPatient = tickets.find(t => t.doctorId === doctorId && t.status === 'em_atendimento_medico');
+  const finishedToday = tickets.filter(t => t.doctorId === doctorId && t.status === 'finalizado');
 
   const [complaint, setComplaint] = useState('');
   const [observations, setObservations] = useState('');
@@ -63,6 +71,21 @@ const DoctorPage = () => {
 
   if (!doctor) return <div className="p-8">Médico não encontrado</div>;
 
+  const TimeInfo = ({ ticket }: { ticket: typeof currentPatient }) => {
+    if (!ticket) return null;
+    const t1 = tempoAteRecepcao(ticket);
+    const t2 = tempoNaRecepcao(ticket);
+    const t3 = tempoEsperaMedico(ticket);
+    return (
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-2">
+        {t1 !== null && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Espera recepção: {formatDuration(t1)}</span>}
+        {t2 !== null && <span>Na recepção: {formatDuration(t2)}</span>}
+        {t3 !== null && <span>Espera médico: {formatDuration(t3)}</span>}
+        <span>Total: {formatDuration(tempoEsperaAtual(ticket))}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="flex items-center gap-4 mb-8">
@@ -74,20 +97,23 @@ const DoctorPage = () => {
           <h1 className="text-2xl font-bold text-foreground">{doctor.name}</h1>
           <p className="text-sm text-muted-foreground">{specialty?.name} • {doctor.room}</p>
         </div>
-        <Button onClick={handleCallNext} className="ml-auto bg-accent text-accent-foreground hover:bg-accent/90" disabled={!!currentPatient || queue.length === 0}>
-          Chamar Próximo
-        </Button>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">{finishedToday.length} atendidos</span>
+          <Button onClick={handleCallNext} className="bg-accent text-accent-foreground hover:bg-accent/90" disabled={!!currentPatient || queue.length === 0}>
+            Chamar Próximo
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Paciente Atual */}
         <div className="lg:col-span-2">
           {currentPatient ? (
             <div className="panel-card bg-card border border-border animate-slide-in">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <span className="text-3xl font-bold text-accent">{currentPatient.code}</span>
                   <h3 className="text-xl font-semibold text-foreground mt-1">{currentPatient.patientName}</h3>
+                  <TimeInfo ticket={currentPatient} />
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setShowPrescription(true)} className="gap-2">
@@ -95,7 +121,6 @@ const DoctorPage = () => {
                   </Button>
                 </div>
               </div>
-              
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground">Queixa</label>
@@ -122,20 +147,22 @@ const DoctorPage = () => {
           )}
         </div>
 
-        {/* Fila */}
         <div className="panel-card bg-card border border-border">
           <h2 className="text-lg font-semibold text-foreground mb-4">Aguardando Consulta ({queue.length})</h2>
           <div className="space-y-2">
             {queue.map(t => (
               <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                 <span className={`font-bold ${t.priority === 'priority' ? 'text-warning' : 'text-primary'}`}>{t.code}</span>
-                <span className="text-sm text-foreground">{t.patientName}</span>
+                <div className="flex-1">
+                  <span className="text-sm text-foreground">{t.patientName}</span>
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> {formatDuration(tempoEsperaAtual(t))}
+                  </div>
+                </div>
                 {t.priority === 'priority' && <span className="text-xs bg-warning/20 text-warning px-2 py-0.5 rounded-full ml-auto">P</span>}
               </div>
             ))}
-            {queue.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">Nenhum paciente aguardando</p>
-            )}
+            {queue.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhum paciente aguardando</p>}
           </div>
         </div>
       </div>
@@ -143,9 +170,7 @@ const DoctorPage = () => {
       {/* Receita Dialog */}
       <Dialog open={showPrescription} onOpenChange={setShowPrescription}>
         <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Gerar Receita Médica</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Gerar Receita Médica</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
             <p className="text-sm text-muted-foreground">
               Paciente: <span className="font-medium text-foreground">{currentPatient?.patientName || currentPatient?.code}</span>
@@ -161,9 +186,7 @@ const DoctorPage = () => {
             ))}
             <Button variant="outline" onClick={addMed} className="w-full">+ Adicionar Medicamento</Button>
             <Textarea placeholder="Observações da receita..." value={prescNotes} onChange={e => setPrescNotes(e.target.value)} />
-            <Button onClick={handlePrescription} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
-              Gerar Receita
-            </Button>
+            <Button onClick={handlePrescription} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">Gerar Receita</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -171,9 +194,7 @@ const DoctorPage = () => {
       {/* Print Dialog */}
       <Dialog open={showPrint} onOpenChange={setShowPrint}>
         <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Receita Médica</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Receita Médica</DialogTitle></DialogHeader>
           {printData && (
             <div className="border border-border rounded-lg p-6 space-y-4" id="prescription-print">
               <div className="text-center border-b border-border pb-4">
@@ -201,15 +222,11 @@ const DoctorPage = () => {
                 </div>
               )}
               <div className="border-t border-border pt-6 mt-6 text-center">
-                <div className="border-t border-foreground w-48 mx-auto pt-2 text-sm text-muted-foreground">
-                  {printData.doctorName}
-                </div>
+                <div className="border-t border-foreground w-48 mx-auto pt-2 text-sm text-muted-foreground">{printData.doctorName}</div>
               </div>
             </div>
           )}
-          <Button onClick={() => window.print()} className="w-full gap-2">
-            <Printer className="w-4 h-4" /> Imprimir
-          </Button>
+          <Button onClick={() => window.print()} className="w-full gap-2"><Printer className="w-4 h-4" /> Imprimir</Button>
         </DialogContent>
       </Dialog>
     </div>
