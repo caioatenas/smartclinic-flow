@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
-import { ArrowLeft, Activity, Phone, User, CreditCard, ChevronRight, Clock } from 'lucide-react';
+import { ArrowLeft, Activity, Phone, User, CreditCard, ChevronRight, Clock, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -9,14 +9,13 @@ import { formatDuration, tempoEsperaAtual } from '@/lib/time-utils';
 
 const ReceptionPage = () => {
   const navigate = useNavigate();
-  const { tickets, specialties, callNextReception, registerPatientAndForward } = useClinic();
+  const { tickets, specialties, queueRules, callNextReception, registerPatientAndForward } = useClinic();
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
   const [, setTick] = useState(0);
 
-  // Force re-render every 10s to update wait times
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 10000);
     return () => clearInterval(interval);
@@ -24,11 +23,7 @@ const ReceptionPage = () => {
 
   const waitingReception = tickets
     .filter(t => t.status === 'aguardando_recepcao')
-    .sort((a, b) => {
-      if (a.priority === 'priority' && b.priority !== 'priority') return -1;
-      if (b.priority === 'priority' && a.priority !== 'priority') return 1;
-      return a.createdAt.getTime() - b.createdAt.getTime();
-    });
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   const inReception = tickets.filter(t => t.status === 'em_atendimento_recepcao');
   const waitingDoctor = tickets.filter(t => t.status === 'aguardando_medico');
@@ -55,7 +50,7 @@ const ReceptionPage = () => {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex items-center gap-4 mb-6">
         <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-6 h-6" />
         </button>
@@ -66,8 +61,15 @@ const ReceptionPage = () => {
         </Button>
       </div>
 
+      {/* Active queue rule banner */}
+      <div className="bg-accent/10 border border-accent/20 rounded-lg p-3 mb-6 flex items-center gap-2 text-sm">
+        <Info className="w-4 h-4 text-accent shrink-0" />
+        <span className="text-foreground">
+          Regra ativa: <strong className="text-accent">{queueRules.normalBeforePriority} normal(is) → {queueRules.priorityCount} prioritário(s)</strong>
+        </span>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Em Atendimento na Recepção */}
         <div className="panel-card bg-card border border-border">
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
             <span className="pulse-dot bg-accent" /> Na Recepção ({inReception.length})
@@ -106,7 +108,6 @@ const ReceptionPage = () => {
           </div>
         </div>
 
-        {/* Fila de Espera - Recepção */}
         <div className="panel-card bg-card border border-border lg:col-span-2">
           <h2 className="text-lg font-semibold text-foreground mb-4">
             Fila de Espera - Recepção ({waitingReception.length})
@@ -135,7 +136,6 @@ const ReceptionPage = () => {
         </div>
       </div>
 
-      {/* Dialog Cadastro */}
       <Dialog open={!!selectedTicket} onOpenChange={() => setSelectedTicket(null)}>
         <DialogContent>
           <DialogHeader>
