@@ -21,7 +21,6 @@ export interface Ticket {
   doctorId?: string;
   createdAt: Date;
   calledAt?: Date;
-  // Timestamps for time tracking
   horaChegada: Date;
   horaChamadaRecepcao?: Date;
   horaFimRecepcao?: Date;
@@ -58,4 +57,19 @@ export interface PrescriptionItem {
   name: string;
   dosage: string;
   instructions: string;
+}
+
+export interface QueueRules {
+  normalBeforePriority: number; // how many normal before 1 priority
+  priorityCount: number; // how many priority after N normal
+}
+
+export interface SystemUser {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  active: boolean;
+  doctorId?: string; // links to Doctor if role is doctor
 }
