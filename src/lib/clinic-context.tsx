@@ -21,6 +21,13 @@ const DOCTORS: Doctor[] = [
 
 const DEFAULT_QUEUE_RULES: QueueRules = { normalBeforePriority: 2, priorityCount: 1 };
 
+const DEFAULT_DOCTOR_TYPES: DoctorType[] = [
+  { id: 'dt1', name: 'Clínico Geral' },
+  { id: 'dt2', name: 'Pediatra' },
+  { id: 'dt3', name: 'Odontologista' },
+  { id: 'dt4', name: 'Otorrino' },
+];
+
 const DEFAULT_USERS: SystemUser[] = [
   { id: 'u1', name: 'Admin Geral', email: 'admin@cliniplus.com', password: 'admin123', role: 'admin', active: true },
   { id: 'u2', name: 'Maria Recepção', email: 'recepcao@cliniplus.com', password: '123456', role: 'receptionist', active: true },
