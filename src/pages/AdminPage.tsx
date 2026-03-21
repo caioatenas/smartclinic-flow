@@ -175,8 +175,9 @@ const AdminPage = () => {
       </div>
 
       <Tabs defaultValue="rules" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="rules" className="gap-2"><Sliders className="w-4 h-4" /> Fila</TabsTrigger>
+          <TabsTrigger value="offices" className="gap-2"><DoorOpen className="w-4 h-4" /> Consultórios</TabsTrigger>
           <TabsTrigger value="doctorTypes" className="gap-2"><Stethoscope className="w-4 h-4" /> Tipos</TabsTrigger>
           <TabsTrigger value="users" className="gap-2"><Shield className="w-4 h-4" /> Usuários</TabsTrigger>
           <TabsTrigger value="metrics" className="gap-2"><BarChart3 className="w-4 h-4" /> Métricas</TabsTrigger>
