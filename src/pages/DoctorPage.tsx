@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
-import { ArrowLeft, Activity, FileText, Printer, Clock } from 'lucide-react';
+import { ArrowLeft, Activity, FileText, Printer, Clock, DoorOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDuration, tempoEsperaAtual, tempoAteRecepcao, tempoNaRecepcao, tempoEsperaMedico } from '@/lib/time-utils';
 
 const DoctorPage = () => {
   const navigate = useNavigate();
   const { doctorId } = useParams<{ doctorId: string }>();
-  const { doctors, specialties, tickets, getDoctorQueue, callNextDoctor, completeAttendance, addRecord, addPrescription } = useClinic();
+  const { doctors, specialties, tickets, offices, getDoctorQueue, callNextDoctor, completeAttendance, addRecord, addPrescription } = useClinic();
   const [, setTick] = useState(0);
+  const [selectedOfficeId, setSelectedOfficeId] = useState<string>('');
 
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 10000);
@@ -24,6 +26,8 @@ const DoctorPage = () => {
   const queue = doctorId ? getDoctorQueue(doctorId) : [];
   const currentPatient = tickets.find(t => t.doctorId === doctorId && t.status === 'em_atendimento_medico');
   const finishedToday = tickets.filter(t => t.doctorId === doctorId && t.status === 'finalizado');
+  const activeOffices = offices.filter(o => o.active);
+  const selectedOffice = offices.find(o => o.id === selectedOfficeId);
 
   const [complaint, setComplaint] = useState('');
   const [observations, setObservations] = useState('');
@@ -35,7 +39,9 @@ const DoctorPage = () => {
   const [printData, setPrintData] = useState<any>(null);
 
   const handleCallNext = () => {
-    if (doctorId) callNextDoctor(doctorId);
+    if (doctorId && selectedOfficeId && selectedOffice) {
+      callNextDoctor(doctorId, selectedOfficeId, selectedOffice.name);
+    }
   };
 
   const handleFinish = () => {
@@ -71,6 +77,37 @@ const DoctorPage = () => {
 
   if (!doctor) return <div className="p-8">Médico não encontrado</div>;
 
+  // Office selection gate
+  if (!selectedOfficeId) {
+    return (
+      <div className="min-h-screen bg-background p-6 flex items-center justify-center">
+        <div className="panel-card bg-card border border-border max-w-md w-full text-center">
+          <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <DoorOpen className="w-12 h-12 text-accent mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-foreground mb-2">{doctor.name}</h1>
+          <p className="text-muted-foreground mb-6">Selecione seu consultório para iniciar</p>
+
+          <Select value={selectedOfficeId} onValueChange={setSelectedOfficeId}>
+            <SelectTrigger className="text-lg h-12">
+              <SelectValue placeholder="Selecione o consultório" />
+            </SelectTrigger>
+            <SelectContent>
+              {activeOffices.map(o => (
+                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {activeOffices.length === 0 && (
+            <p className="text-sm text-destructive mt-4">Nenhum consultório ativo. Peça ao administrador para cadastrar consultórios.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const TimeInfo = ({ ticket }: { ticket: typeof currentPatient }) => {
     if (!ticket) return null;
     const t1 = tempoAteRecepcao(ticket);
@@ -95,9 +132,12 @@ const DoctorPage = () => {
         <Activity className="w-6 h-6 text-accent" />
         <div>
           <h1 className="text-2xl font-bold text-foreground">{doctor.name}</h1>
-          <p className="text-sm text-muted-foreground">{specialty?.name} • {doctor.room}</p>
+          <p className="text-sm text-muted-foreground">{specialty?.name} • {selectedOffice?.name}</p>
         </div>
         <div className="ml-auto flex items-center gap-3">
+          <button onClick={() => setSelectedOfficeId('')} className="text-xs text-muted-foreground hover:text-foreground underline">
+            Trocar consultório
+          </button>
           <span className="text-xs text-muted-foreground">{finishedToday.length} atendidos</span>
           <Button onClick={handleCallNext} className="bg-accent text-accent-foreground hover:bg-accent/90" disabled={!!currentPatient || queue.length === 0}>
             Chamar Próximo
@@ -113,6 +153,11 @@ const DoctorPage = () => {
                 <div>
                   <span className="text-3xl font-bold text-accent">{currentPatient.code}</span>
                   <h3 className="text-xl font-semibold text-foreground mt-1">{currentPatient.patientName}</h3>
+                  {currentPatient.officeName && (
+                    <span className="text-sm text-primary flex items-center gap-1 mt-1">
+                      <DoorOpen className="w-4 h-4" /> {currentPatient.officeName}
+                    </span>
+                  )}
                   <TimeInfo ticket={currentPatient} />
                 </div>
                 <div className="flex gap-2">

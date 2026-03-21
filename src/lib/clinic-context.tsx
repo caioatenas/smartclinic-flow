@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { Ticket, Specialty, Doctor, DoctorType, Priority, MedicalRecord, Prescription, QueueRules, SystemUser } from './clinic-types';
+import { Ticket, Specialty, Doctor, DoctorType, Office, Priority, MedicalRecord, Prescription, QueueRules, SystemUser } from './clinic-types';
 
 const SPECIALTIES: Specialty[] = [
   { id: '1', name: 'Clínica Geral', icon: '🩺' },
@@ -26,6 +26,12 @@ const DEFAULT_DOCTOR_TYPES: DoctorType[] = [
   { id: 'dt2', name: 'Pediatra' },
   { id: 'dt3', name: 'Odontologista' },
   { id: 'dt4', name: 'Otorrino' },
+];
+
+const DEFAULT_OFFICES: Office[] = [
+  { id: 'of1', name: 'Consultório 1', active: true },
+  { id: 'of2', name: 'Consultório 2', active: true },
+  { id: 'of3', name: 'Consultório 3', active: true },
 ];
 
 const DEFAULT_USERS: SystemUser[] = [
@@ -65,12 +71,13 @@ interface StoredState {
   normalCalledSinceLastPriority: number;
   users: SystemUser[];
   doctorTypes: DoctorType[];
+  offices: Office[];
 }
 
 function saveState(
   tickets: Ticket[], records: MedicalRecord[], prescriptions: Prescription[],
   nc: number, pc: number, queueRules: QueueRules, normalCalledSinceLastPriority: number,
-  users: SystemUser[], doctorTypes: DoctorType[]
+  users: SystemUser[], doctorTypes: DoctorType[], offices: Office[]
 ) {
   const data: StoredState = {
     tickets: tickets.map(serializeTicket),
@@ -82,6 +89,7 @@ function saveState(
     normalCalledSinceLastPriority,
     users,
     doctorTypes,
+    offices,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
@@ -101,6 +109,7 @@ function loadState() {
       normalCalledSinceLastPriority: data.normalCalledSinceLastPriority || 0,
       users: data.users || DEFAULT_USERS,
       doctorTypes: data.doctorTypes || DEFAULT_DOCTOR_TYPES,
+      offices: data.offices || DEFAULT_OFFICES,
     };
   } catch { return null; }
 }
@@ -110,6 +119,7 @@ interface ClinicContextType {
   specialties: Specialty[];
   doctors: Doctor[];
   doctorTypes: DoctorType[];
+  offices: Office[];
   records: MedicalRecord[];
   prescriptions: Prescription[];
   queueRules: QueueRules;
@@ -117,7 +127,7 @@ interface ClinicContextType {
   createTicket: (priority: Priority, specialtyId: string) => Ticket;
   callNextReception: () => Ticket | null;
   registerPatientAndForward: (ticketId: string, name: string, cpf?: string, phone?: string) => void;
-  callNextDoctor: (doctorId: string) => Ticket | null;
+  callNextDoctor: (doctorId: string, officeId: string, officeName: string) => Ticket | null;
   completeAttendance: (ticketId: string) => void;
   addRecord: (record: Omit<MedicalRecord, 'createdAt'>) => void;
   addPrescription: (prescription: Omit<Prescription, 'id' | 'date'>) => void;
@@ -130,6 +140,10 @@ interface ClinicContextType {
   addDoctorType: (name: string) => void;
   updateDoctorType: (id: string, name: string) => void;
   deleteDoctorType: (id: string) => void;
+  addOffice: (name: string) => void;
+  addOfficesBulk: (count: number) => void;
+  updateOffice: (id: string, name: string) => void;
+  toggleOfficeActive: (id: string) => void;
 }
 
 const ClinicContext = createContext<ClinicContextType | null>(null);
@@ -145,6 +159,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const [queueRules, setQueueRules] = useState<QueueRules>(DEFAULT_QUEUE_RULES);
   const [users, setUsers] = useState<SystemUser[]>(DEFAULT_USERS);
   const [doctorTypes, setDoctorTypes] = useState<DoctorType[]>(DEFAULT_DOCTOR_TYPES);
+  const [offices, setOffices] = useState<Office[]>(DEFAULT_OFFICES);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -161,18 +176,19 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       normalCalledSinceLastPriority = saved.normalCalledSinceLastPriority;
       setUsers(saved.users);
       setDoctorTypes(saved.doctorTypes);
+      setOffices(saved.offices);
     }
   }, []);
 
   useEffect(() => {
     if (!initialized.current) return;
-    saveState(tickets, records, prescriptions, normalCounter, priorityCounter, queueRules, normalCalledSinceLastPriority, users, doctorTypes);
+    saveState(tickets, records, prescriptions, normalCounter, priorityCounter, queueRules, normalCalledSinceLastPriority, users, doctorTypes, offices);
     try {
       const bc = new BroadcastChannel(SYNC_CHANNEL);
       bc.postMessage('sync');
       bc.close();
     } catch {}
-  }, [tickets, records, prescriptions, queueRules, users, doctorTypes]);
+  }, [tickets, records, prescriptions, queueRules, users, doctorTypes, offices]);
 
   useEffect(() => {
     const bc = new BroadcastChannel(SYNC_CHANNEL);
@@ -188,6 +204,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
         normalCalledSinceLastPriority = saved.normalCalledSinceLastPriority;
         setUsers(saved.users);
         setDoctorTypes(saved.doctorTypes);
+        setOffices(saved.offices);
       }
     };
     return () => bc.close();
@@ -265,7 +282,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  const callNextDoctor = useCallback((doctorId: string) => {
+  const callNextDoctor = useCallback((doctorId: string, officeId: string, officeName: string) => {
     let called: Ticket | null = null;
     setTickets(prev => {
       const waiting = sortByCreatedAt(prev.filter(t => t.status === 'aguardando_medico' && t.doctorId === doctorId));
@@ -276,7 +293,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       if (priorityFirst.length === 0) return prev;
       const next = priorityFirst[0];
       const now = new Date();
-      called = { ...next, status: 'em_atendimento_medico', calledAt: now, horaChamadaMedico: now };
+      called = { ...next, status: 'em_atendimento_medico', calledAt: now, horaChamadaMedico: now, officeId, officeName };
       return prev.map(t => t.id === next.id ? called! : t);
     });
     return called;
@@ -336,14 +353,38 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     setDoctorTypes(prev => prev.filter(dt => dt.id !== id));
   }, []);
 
+  const addOffice = useCallback((name: string) => {
+    setOffices(prev => [...prev, { id: crypto.randomUUID(), name, active: true }]);
+  }, []);
+
+  const addOfficesBulk = useCallback((count: number) => {
+    setOffices(prev => {
+      const existing = prev.length;
+      const newOffices: Office[] = [];
+      for (let i = 1; i <= count; i++) {
+        newOffices.push({ id: crypto.randomUUID(), name: `Consultório ${existing + i}`, active: true });
+      }
+      return [...prev, ...newOffices];
+    });
+  }, []);
+
+  const updateOffice = useCallback((id: string, name: string) => {
+    setOffices(prev => prev.map(o => o.id === id ? { ...o, name } : o));
+  }, []);
+
+  const toggleOfficeActive = useCallback((id: string) => {
+    setOffices(prev => prev.map(o => o.id === id ? { ...o, active: !o.active } : o));
+  }, []);
+
   return (
     <ClinicContext.Provider value={{
-      tickets, specialties: SPECIALTIES, doctors: DOCTORS, doctorTypes, records, prescriptions,
+      tickets, specialties: SPECIALTIES, doctors: DOCTORS, doctorTypes, offices, records, prescriptions,
       queueRules, users,
       createTicket, callNextReception, registerPatientAndForward, callNextDoctor,
       completeAttendance, addRecord, addPrescription, getReceptionQueue, getDoctorQueue,
       updateQueueRules, addUser, updateUser, toggleUserActive,
       addDoctorType, updateDoctorType, deleteDoctorType,
+      addOffice, addOfficesBulk, updateOffice, toggleOfficeActive,
     }}>
       {children}
     </ClinicContext.Provider>
