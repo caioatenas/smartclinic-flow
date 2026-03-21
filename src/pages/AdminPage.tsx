@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
 import {
   ArrowLeft, Activity, Users, Stethoscope, ListChecks, Clock, BarChart3,
-  Settings, UserPlus, Shield, Sliders, Eye, EyeOff, Pencil, Save, X, Plus, Trash2
+  Settings, UserPlus, Shield, Sliders, Eye, EyeOff, Pencil, Save, X, Plus, Trash2, DoorOpen
 } from 'lucide-react';
 import { calcularMedias, formatDuration } from '@/lib/time-utils';
 import { Button } from '@/components/ui/button';
