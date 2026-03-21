@@ -54,6 +54,12 @@ const AdminPage = () => {
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [editingTypeName, setEditingTypeName] = useState('');
 
+  // Office form
+  const [newOfficeName, setNewOfficeName] = useState('');
+  const [bulkCount, setBulkCount] = useState('');
+  const [editingOfficeId, setEditingOfficeId] = useState<string | null>(null);
+  const [editingOfficeName, setEditingOfficeName] = useState('');
+
   const handleSaveRules = () => {
     const n = Math.max(1, parseInt(normalCount) || 1);
     const p = Math.max(1, parseInt(priorityCount) || 1);
