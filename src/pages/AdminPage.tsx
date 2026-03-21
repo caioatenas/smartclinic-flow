@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
 import {
   ArrowLeft, Activity, Users, Stethoscope, ListChecks, Clock, BarChart3,
-  Settings, UserPlus, Shield, Sliders, Eye, EyeOff, Pencil, Save, X
+  Settings, UserPlus, Shield, Sliders, Eye, EyeOff, Pencil, Save, X, Plus, Trash2
 } from 'lucide-react';
 import { calcularMedias, formatDuration } from '@/lib/time-utils';
 import { Button } from '@/components/ui/button';
@@ -24,8 +24,9 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const AdminPage = () => {
   const navigate = useNavigate();
   const {
-    doctors, specialties, tickets, queueRules, users,
+    doctors, specialties, tickets, queueRules, users, doctorTypes,
     updateQueueRules, addUser, updateUser, toggleUserActive,
+    addDoctorType, updateDoctorType, deleteDoctorType,
   } = useClinic();
 
   const totalToday = tickets.length;
@@ -45,6 +46,12 @@ const AdminPage = () => {
   const [userPassword, setUserPassword] = useState('');
   const [userRole, setUserRole] = useState<UserRole>('receptionist');
   const [userDoctorId, setUserDoctorId] = useState('');
+  const [userDoctorTypeId, setUserDoctorTypeId] = useState('');
+
+  // Doctor type form
+  const [newTypeName, setNewTypeName] = useState('');
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [editingTypeName, setEditingTypeName] = useState('');
 
   const handleSaveRules = () => {
     const n = Math.max(1, parseInt(normalCount) || 1);
@@ -59,6 +66,7 @@ const AdminPage = () => {
     setUserPassword('');
     setUserRole('receptionist');
     setUserDoctorId('');
+    setUserDoctorTypeId('');
     setShowUserForm(true);
   };
 
@@ -69,6 +77,7 @@ const AdminPage = () => {
     setUserPassword('');
     setUserRole(u.role);
     setUserDoctorId(u.doctorId || '');
+    setUserDoctorTypeId('');
     setShowUserForm(true);
   };
 
@@ -92,6 +101,19 @@ const AdminPage = () => {
       });
     }
     setShowUserForm(false);
+  };
+
+  const handleAddType = () => {
+    if (!newTypeName.trim()) return;
+    addDoctorType(newTypeName.trim());
+    setNewTypeName('');
+  };
+
+  const handleSaveType = () => {
+    if (!editingTypeId || !editingTypeName.trim()) return;
+    updateDoctorType(editingTypeId, editingTypeName.trim());
+    setEditingTypeId(null);
+    setEditingTypeName('');
   };
 
   return (
@@ -126,11 +148,12 @@ const AdminPage = () => {
       </div>
 
       <Tabs defaultValue="rules" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="rules" className="gap-2"><Sliders className="w-4 h-4" /> Fila</TabsTrigger>
+          <TabsTrigger value="doctorTypes" className="gap-2"><Stethoscope className="w-4 h-4" /> Tipos</TabsTrigger>
           <TabsTrigger value="users" className="gap-2"><Shield className="w-4 h-4" /> Usuários</TabsTrigger>
           <TabsTrigger value="metrics" className="gap-2"><BarChart3 className="w-4 h-4" /> Métricas</TabsTrigger>
-          <TabsTrigger value="overview" className="gap-2"><Settings className="w-4 h-4" /> Visão Geral</TabsTrigger>
+          <TabsTrigger value="overview" className="gap-2"><Settings className="w-4 h-4" /> Visão</TabsTrigger>
         </TabsList>
 
         {/* ===== QUEUE RULES TAB ===== */}
@@ -145,62 +168,92 @@ const AdminPage = () => {
               <p className="text-lg text-accent font-bold mt-1">
                 {queueRules.normalBeforePriority} normal(is) → {queueRules.priorityCount} prioritário(s)
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                A cada {queueRules.normalBeforePriority} atendimento(s) normal(is), o sistema chamará {queueRules.priorityCount} paciente(s) prioritário(s).
-              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="text-sm font-medium text-foreground block mb-2">
-                  🔢 Atendimentos normais antes do prioritário
+                  🔢 Normais antes do prioritário
                 </label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={normalCount}
-                  onChange={e => setNormalCount(e.target.value)}
-                  className="text-lg"
-                />
-                <p className="text-xs text-muted-foreground mt-1">Quantidade de senhas normais chamadas antes de chamar uma prioridade</p>
+                <Input type="number" min="1" max="10" value={normalCount} onChange={e => setNormalCount(e.target.value)} className="text-lg" />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground block mb-2">
-                  ⭐ Atendimentos prioritários na sequência
+                  ⭐ Prioritários na sequência
                 </label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="5"
-                  value={priorityCount}
-                  onChange={e => setPriorityCount(e.target.value)}
-                  className="text-lg"
-                />
-                <p className="text-xs text-muted-foreground mt-1">Quantidade de senhas prioritárias chamadas na vez</p>
+                <Input type="number" min="1" max="5" value={priorityCount} onChange={e => setPriorityCount(e.target.value)} className="text-lg" />
               </div>
             </div>
 
             <Button onClick={handleSaveRules} className="mt-6 bg-accent text-accent-foreground hover:bg-accent/90 gap-2">
-              <Save className="w-4 h-4" /> Salvar Regra da Fila
+              <Save className="w-4 h-4" /> Salvar Regra
             </Button>
           </div>
+        </TabsContent>
 
-          <div className="panel-card bg-card border border-border mt-6">
-            <h3 className="text-md font-semibold text-foreground mb-4">Como funciona</h3>
-            <div className="space-y-3 text-sm text-muted-foreground">
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                <span className="text-xl">1️⃣</span>
-                <p>O sistema chama <strong className="text-foreground">{queueRules.normalBeforePriority}</strong> paciente(s) <strong className="text-foreground">normal(is)</strong> na ordem de chegada</p>
-              </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                <span className="text-xl">2️⃣</span>
-                <p>Após isso, chama <strong className="text-foreground">{queueRules.priorityCount}</strong> paciente(s) <strong className="text-warning">prioritário(s)</strong></p>
-              </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                <span className="text-xl">3️⃣</span>
-                <p>Se não houver pacientes prioritários, continua chamando normais. Prioridade nunca é ignorada.</p>
-              </div>
+        {/* ===== DOCTOR TYPES TAB ===== */}
+        <TabsContent value="doctorTypes">
+          <div className="panel-card bg-card border border-border">
+            <h2 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
+              <Stethoscope className="w-5 h-5 text-accent" /> Tipos de Médico
+            </h2>
+
+            <div className="flex gap-2 mb-6">
+              <Input
+                placeholder="Nome do novo tipo (ex: Cardiologista)"
+                value={newTypeName}
+                onChange={e => setNewTypeName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddType()}
+              />
+              <Button onClick={handleAddType} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!newTypeName.trim()}>
+                <Plus className="w-4 h-4" /> Adicionar
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              {doctorTypes.map(dt => {
+                const isEditing = editingTypeId === dt.id;
+                const doctorsOfType = doctors.filter(d => d.doctorTypeId === dt.id);
+                return (
+                  <div key={dt.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
+                    {isEditing ? (
+                      <>
+                        <Input
+                          value={editingTypeName}
+                          onChange={e => setEditingTypeName(e.target.value)}
+                          className="flex-1"
+                          onKeyDown={e => e.key === 'Enter' && handleSaveType()}
+                        />
+                        <Button size="sm" onClick={handleSaveType} className="bg-accent text-accent-foreground gap-1">
+                          <Save className="w-3 h-3" /> Salvar
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingTypeId(null)}>
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Stethoscope className="w-5 h-5 text-primary" />
+                        <div className="flex-1">
+                          <div className="font-medium text-foreground">{dt.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {doctorsOfType.length} médico(s) vinculado(s)
+                          </div>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditingTypeId(dt.id); setEditingTypeName(dt.name); }}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => deleteDoctorType(dt.id)} className="text-destructive hover:text-destructive">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+              {doctorTypes.length === 0 && (
+                <p className="text-muted-foreground text-center py-6">Nenhum tipo cadastrado</p>
+              )}
             </div>
           </div>
         </TabsContent>
@@ -304,6 +357,7 @@ const AdminPage = () => {
               <div className="space-y-3">
                 {doctors.map(d => {
                   const spec = specialties.find(s => s.id === d.specialtyId);
+                  const dtype = doctorTypes.find(dt => dt.id === d.doctorTypeId);
                   const queueCount = tickets.filter(t => t.doctorId === d.id && t.status === 'aguardando_medico').length;
                   const doneCount = tickets.filter(t => t.doctorId === d.id && t.status === 'finalizado').length;
                   return (
@@ -313,7 +367,10 @@ const AdminPage = () => {
                       </div>
                       <div className="flex-1">
                         <div className="font-medium text-foreground">{d.name}</div>
-                        <div className="text-sm text-muted-foreground">{spec?.name} • {d.room}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {spec?.name} • {d.room}
+                          {dtype && <span className="ml-1 text-xs text-accent">• {dtype.name}</span>}
+                        </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-sm bg-accent/10 text-accent px-2 py-1 rounded-full">{queueCount} na fila</span>
@@ -372,9 +429,7 @@ const AdminPage = () => {
             <div>
               <label className="text-sm font-medium text-foreground block mb-1">Perfil de Acesso *</label>
               <Select value={userRole} onValueChange={v => setUserRole(v as UserRole)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Administrador</SelectItem>
                   <SelectItem value="doctor">Médico</SelectItem>
@@ -384,19 +439,30 @@ const AdminPage = () => {
               </Select>
             </div>
             {userRole === 'doctor' && (
-              <div>
-                <label className="text-sm font-medium text-foreground block mb-1">Vincular ao Médico</label>
-                <Select value={userDoctorId} onValueChange={setUserDoctorId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o médico" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {doctors.map(d => (
-                      <SelectItem key={d.id} value={d.id}>{d.name} - {d.room}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div>
+                  <label className="text-sm font-medium text-foreground block mb-1">Vincular ao Médico</label>
+                  <Select value={userDoctorId} onValueChange={setUserDoctorId}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o médico" /></SelectTrigger>
+                    <SelectContent>
+                      {doctors.map(d => (
+                        <SelectItem key={d.id} value={d.id}>{d.name} - {d.room}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground block mb-1">Tipo de Médico *</label>
+                  <Select value={userDoctorTypeId} onValueChange={setUserDoctorTypeId}>
+                    <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
+                    <SelectContent>
+                      {doctorTypes.map(dt => (
+                        <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
             <div className="flex gap-2">
               <Button onClick={handleSaveUser} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!userName || !userEmail || (!editingUser && !userPassword)}>
