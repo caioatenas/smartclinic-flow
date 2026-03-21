@@ -123,6 +123,26 @@ const AdminPage = () => {
     setEditingTypeName('');
   };
 
+  const handleAddOffice = () => {
+    if (!newOfficeName.trim()) return;
+    addOffice(newOfficeName.trim());
+    setNewOfficeName('');
+  };
+
+  const handleBulkOffices = () => {
+    const count = parseInt(bulkCount);
+    if (!count || count < 1) return;
+    addOfficesBulk(count);
+    setBulkCount('');
+  };
+
+  const handleSaveOffice = () => {
+    if (!editingOfficeId || !editingOfficeName.trim()) return;
+    updateOffice(editingOfficeId, editingOfficeName.trim());
+    setEditingOfficeId(null);
+    setEditingOfficeName('');
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="flex items-center gap-4 mb-8">
