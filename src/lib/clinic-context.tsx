@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { Ticket, Specialty, Doctor, Priority, MedicalRecord, Prescription, QueueRules, SystemUser } from './clinic-types';
+import { Ticket, Specialty, Doctor, DoctorType, Priority, MedicalRecord, Prescription, QueueRules, SystemUser } from './clinic-types';
 
 const SPECIALTIES: Specialty[] = [
   { id: '1', name: 'Clínica Geral', icon: '🩺' },

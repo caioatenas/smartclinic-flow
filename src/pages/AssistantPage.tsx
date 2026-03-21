@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
 import { ArrowLeft, Activity, Clock, Timer, ChevronDown, ChevronUp } from 'lucide-react';
-import { formatDuration, tempoAteRecepcao, tempoNaRecepcao, tempoEsperaMedico, tempoAtendimentoMedico, tempoTotal } from '@/lib/time-utils';
+import { formatDuration } from '@/lib/time-utils';
 import type { Ticket } from '@/lib/clinic-types';
 
 const statusConfig: Record<string, { label: string; color: string }> = {
