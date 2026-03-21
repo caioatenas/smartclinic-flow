@@ -24,9 +24,10 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const AdminPage = () => {
   const navigate = useNavigate();
   const {
-    doctors, specialties, tickets, queueRules, users, doctorTypes,
+    doctors, specialties, tickets, queueRules, users, doctorTypes, offices,
     updateQueueRules, addUser, updateUser, toggleUserActive,
     addDoctorType, updateDoctorType, deleteDoctorType,
+    addOffice, addOfficesBulk, updateOffice, toggleOfficeActive,
   } = useClinic();
 
   const totalToday = tickets.length;
