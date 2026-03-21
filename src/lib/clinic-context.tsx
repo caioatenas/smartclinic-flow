@@ -64,6 +64,7 @@ interface StoredState {
   queueRules: QueueRules;
   normalCalledSinceLastPriority: number;
   users: SystemUser[];
+  doctorTypes: DoctorType[];
 }
 
 function saveState(
