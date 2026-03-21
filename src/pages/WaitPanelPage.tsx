@@ -1,7 +1,6 @@
 import { useClinic } from '@/lib/clinic-context';
-import { Activity } from 'lucide-react';
+import { Activity, ArrowLeft, DoorOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { formatDuration, tempoEsperaAtual } from '@/lib/time-utils';
 
@@ -38,17 +37,6 @@ const WaitPanelPage = () => {
   const getSpecialty = (id: string) => specialties.find(s => s.id === id);
   const getDoctor = (id?: string) => doctors.find(d => d.id === id);
 
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case 'em_atendimento_recepcao': return <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">📋 Recepção</span>;
-      case 'em_atendimento_medico': return <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">🩺 Consulta</span>;
-      case 'aguardando_recepcao': return <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">Aguardando</span>;
-      case 'aguardando_medico': return <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">Ag. Médico</span>;
-      case 'finalizado': return <span className="text-xs bg-panel-foreground/20 text-panel-foreground/50 px-2 py-0.5 rounded-full">Finalizado</span>;
-      default: return null;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-panel text-panel-foreground p-8">
       <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-panel-foreground/60 hover:text-panel-foreground transition-colors">
@@ -75,7 +63,14 @@ const WaitPanelPage = () => {
                     : `${getSpecialty(t.specialtyId)?.name} • ${t.room || ''}`}
                 </div>
                 {t.status === 'em_atendimento_medico' && (
-                  <div className="text-panel-foreground/50 text-sm mt-1">{getDoctor(t.doctorId)?.name}</div>
+                  <>
+                    <div className="text-panel-foreground/50 text-sm mt-1">{getDoctor(t.doctorId)?.name}</div>
+                    {t.officeName && (
+                      <div className="flex items-center justify-center gap-1 text-panel-highlight text-sm mt-2 font-medium">
+                        <DoorOpen className="w-4 h-4" /> {t.officeName}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}
@@ -139,7 +134,6 @@ const WaitPanelPage = () => {
                   <span className="font-bold text-panel-foreground/40 text-sm">{t.code}</span>
                   <span className="text-sm text-panel-foreground/50 flex-1 truncate">{t.patientName || '---'}</span>
                   {t.priority === 'priority' && <span className="text-xs text-warning">P</span>}
-                  {statusBadge(t.status)}
                 </div>
               ))}
             </div>

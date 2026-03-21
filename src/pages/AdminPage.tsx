@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
 import {
   ArrowLeft, Activity, Users, Stethoscope, ListChecks, Clock, BarChart3,
-  Settings, UserPlus, Shield, Sliders, Eye, EyeOff, Pencil, Save, X, Plus, Trash2
+  Settings, UserPlus, Shield, Sliders, Eye, EyeOff, Pencil, Save, X, Plus, Trash2, DoorOpen
 } from 'lucide-react';
 import { calcularMedias, formatDuration } from '@/lib/time-utils';
 import { Button } from '@/components/ui/button';
@@ -24,9 +24,10 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const AdminPage = () => {
   const navigate = useNavigate();
   const {
-    doctors, specialties, tickets, queueRules, users, doctorTypes,
+    doctors, specialties, tickets, queueRules, users, doctorTypes, offices,
     updateQueueRules, addUser, updateUser, toggleUserActive,
     addDoctorType, updateDoctorType, deleteDoctorType,
+    addOffice, addOfficesBulk, updateOffice, toggleOfficeActive,
   } = useClinic();
 
   const totalToday = tickets.length;
@@ -52,6 +53,12 @@ const AdminPage = () => {
   const [newTypeName, setNewTypeName] = useState('');
   const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
   const [editingTypeName, setEditingTypeName] = useState('');
+
+  // Office form
+  const [newOfficeName, setNewOfficeName] = useState('');
+  const [bulkCount, setBulkCount] = useState('');
+  const [editingOfficeId, setEditingOfficeId] = useState<string | null>(null);
+  const [editingOfficeName, setEditingOfficeName] = useState('');
 
   const handleSaveRules = () => {
     const n = Math.max(1, parseInt(normalCount) || 1);
@@ -116,6 +123,26 @@ const AdminPage = () => {
     setEditingTypeName('');
   };
 
+  const handleAddOffice = () => {
+    if (!newOfficeName.trim()) return;
+    addOffice(newOfficeName.trim());
+    setNewOfficeName('');
+  };
+
+  const handleBulkOffices = () => {
+    const count = parseInt(bulkCount);
+    if (!count || count < 1) return;
+    addOfficesBulk(count);
+    setBulkCount('');
+  };
+
+  const handleSaveOffice = () => {
+    if (!editingOfficeId || !editingOfficeName.trim()) return;
+    updateOffice(editingOfficeId, editingOfficeName.trim());
+    setEditingOfficeId(null);
+    setEditingOfficeName('');
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="flex items-center gap-4 mb-8">
@@ -148,8 +175,9 @@ const AdminPage = () => {
       </div>
 
       <Tabs defaultValue="rules" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="rules" className="gap-2"><Sliders className="w-4 h-4" /> Fila</TabsTrigger>
+          <TabsTrigger value="offices" className="gap-2"><DoorOpen className="w-4 h-4" /> Consultórios</TabsTrigger>
           <TabsTrigger value="doctorTypes" className="gap-2"><Stethoscope className="w-4 h-4" /> Tipos</TabsTrigger>
           <TabsTrigger value="users" className="gap-2"><Shield className="w-4 h-4" /> Usuários</TabsTrigger>
           <TabsTrigger value="metrics" className="gap-2"><BarChart3 className="w-4 h-4" /> Métricas</TabsTrigger>
@@ -188,6 +216,95 @@ const AdminPage = () => {
             <Button onClick={handleSaveRules} className="mt-6 bg-accent text-accent-foreground hover:bg-accent/90 gap-2">
               <Save className="w-4 h-4" /> Salvar Regra
             </Button>
+          </div>
+        </TabsContent>
+
+        {/* ===== OFFICES TAB ===== */}
+        <TabsContent value="offices">
+          <div className="panel-card bg-card border border-border">
+            <h2 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
+              <DoorOpen className="w-5 h-5 text-accent" /> Consultórios
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Adicionar individualmente</label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nome do consultório"
+                    value={newOfficeName}
+                    onChange={e => setNewOfficeName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAddOffice()}
+                  />
+                  <Button onClick={handleAddOffice} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!newOfficeName.trim()}>
+                    <Plus className="w-4 h-4" /> Criar
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-2">Criar por quantidade</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="20"
+                    placeholder="Quantidade"
+                    value={bulkCount}
+                    onChange={e => setBulkCount(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleBulkOffices()}
+                  />
+                  <Button onClick={handleBulkOffices} className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2" disabled={!bulkCount || parseInt(bulkCount) < 1}>
+                    <Plus className="w-4 h-4" /> Gerar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Gera "Consultório 1, 2, 3..." automaticamente</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {offices.map(o => {
+                const isEditing = editingOfficeId === o.id;
+                return (
+                  <div key={o.id} className={`flex items-center gap-3 p-3 rounded-lg ${o.active ? 'bg-muted/30' : 'bg-muted/10 opacity-60'}`}>
+                    {isEditing ? (
+                      <>
+                        <Input
+                          value={editingOfficeName}
+                          onChange={e => setEditingOfficeName(e.target.value)}
+                          className="flex-1"
+                          onKeyDown={e => e.key === 'Enter' && handleSaveOffice()}
+                        />
+                        <Button size="sm" onClick={handleSaveOffice} className="bg-accent text-accent-foreground gap-1">
+                          <Save className="w-3 h-3" /> Salvar
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingOfficeId(null)}>
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <DoorOpen className="w-5 h-5 text-primary" />
+                        <div className="flex-1">
+                          <div className="font-medium text-foreground">{o.name}</div>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${o.active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
+                          {o.active ? 'Ativo' : 'Inativo'}
+                        </span>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditingOfficeId(o.id); setEditingOfficeName(o.name); }}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => toggleOfficeActive(o.id)}>
+                          {o.active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+              {offices.length === 0 && (
+                <p className="text-muted-foreground text-center py-6">Nenhum consultório cadastrado</p>
+              )}
+            </div>
           </div>
         </TabsContent>
 

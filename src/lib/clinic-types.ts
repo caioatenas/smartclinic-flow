@@ -18,6 +18,8 @@ export interface Ticket {
   patientCpf?: string;
   patientPhone?: string;
   room?: string;
+  officeId?: string;
+  officeName?: string;
   doctorId?: string;
   createdAt: Date;
   calledAt?: Date;
@@ -28,6 +30,11 @@ export interface Ticket {
   horaFimAtendimento?: Date;
 }
 
+export interface Office {
+  id: string;
+  name: string;
+  active: boolean;
+}
 export interface DoctorType {
   id: string;
   name: string;
