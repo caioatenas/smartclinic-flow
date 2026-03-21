@@ -28,11 +28,17 @@ export interface Ticket {
   horaFimAtendimento?: Date;
 }
 
+export interface DoctorType {
+  id: string;
+  name: string;
+}
+
 export interface Doctor {
   id: string;
   name: string;
   specialtyId: string;
   room: string;
+  doctorTypeId?: string;
 }
 
 export interface MedicalRecord {
