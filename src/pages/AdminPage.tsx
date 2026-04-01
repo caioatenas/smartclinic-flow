@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
 import {
   ArrowLeft, Activity, Users, Stethoscope, ListChecks, Clock, BarChart3,
-  Settings, UserPlus, Shield, Sliders, Eye, EyeOff, Pencil, Save, X, Plus, Trash2, DoorOpen
+  Settings, UserPlus, Shield, Sliders, Eye, EyeOff, Pencil, Save, X, Plus, Trash2, DoorOpen, UserCheck
 } from 'lucide-react';
 import { calcularMedias, formatDuration } from '@/lib/time-utils';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ const AdminPage = () => {
     updateQueueRules, addUser, updateUser, toggleUserActive,
     addDoctorType, updateDoctorType, deleteDoctorType,
     addOffice, addOfficesBulk, updateOffice, toggleOfficeActive,
+    addDoctor, updateDoctor, deleteDoctor,
   } = useClinic();
 
   const totalToday = tickets.length;
@@ -47,7 +48,6 @@ const AdminPage = () => {
   const [userPassword, setUserPassword] = useState('');
   const [userRole, setUserRole] = useState<UserRole>('receptionist');
   const [userDoctorId, setUserDoctorId] = useState('');
-  const [userDoctorTypeId, setUserDoctorTypeId] = useState('');
 
   // Doctor type form
   const [newTypeName, setNewTypeName] = useState('');
@@ -59,6 +59,14 @@ const AdminPage = () => {
   const [bulkCount, setBulkCount] = useState('');
   const [editingOfficeId, setEditingOfficeId] = useState<string | null>(null);
   const [editingOfficeName, setEditingOfficeName] = useState('');
+
+  // Doctor form
+  const [showDoctorForm, setShowDoctorForm] = useState(false);
+  const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
+  const [doctorName, setDoctorName] = useState('');
+  const [doctorSpecialtyId, setDoctorSpecialtyId] = useState('');
+  const [doctorRoom, setDoctorRoom] = useState('');
+  const [doctorTypeId, setDoctorTypeId] = useState('');
 
   const handleSaveRules = () => {
     const n = Math.max(1, parseInt(normalCount) || 1);
@@ -73,7 +81,6 @@ const AdminPage = () => {
     setUserPassword('');
     setUserRole('receptionist');
     setUserDoctorId('');
-    setUserDoctorTypeId('');
     setShowUserForm(true);
   };
 
@@ -84,7 +91,6 @@ const AdminPage = () => {
     setUserPassword('');
     setUserRole(u.role);
     setUserDoctorId(u.doctorId || '');
-    setUserDoctorTypeId('');
     setShowUserForm(true);
   };
 
@@ -143,6 +149,34 @@ const AdminPage = () => {
     setEditingOfficeName('');
   };
 
+  const openNewDoctor = () => {
+    setEditingDoctorId(null);
+    setDoctorName('');
+    setDoctorSpecialtyId('');
+    setDoctorRoom('');
+    setDoctorTypeId('');
+    setShowDoctorForm(true);
+  };
+
+  const openEditDoctor = (d: typeof doctors[0]) => {
+    setEditingDoctorId(d.id);
+    setDoctorName(d.name);
+    setDoctorSpecialtyId(d.specialtyId);
+    setDoctorRoom(d.room);
+    setDoctorTypeId(d.doctorTypeId || '');
+    setShowDoctorForm(true);
+  };
+
+  const handleSaveDoctor = () => {
+    if (!doctorName || !doctorSpecialtyId || !doctorRoom || !doctorTypeId) return;
+    if (editingDoctorId) {
+      updateDoctor(editingDoctorId, { name: doctorName, specialtyId: doctorSpecialtyId, room: doctorRoom, doctorTypeId: doctorTypeId });
+    } else {
+      addDoctor({ name: doctorName, specialtyId: doctorSpecialtyId, room: doctorRoom, doctorTypeId: doctorTypeId });
+    }
+    setShowDoctorForm(false);
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="flex items-center gap-4 mb-8">
@@ -175,13 +209,14 @@ const AdminPage = () => {
       </div>
 
       <Tabs defaultValue="rules" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="rules" className="gap-2"><Sliders className="w-4 h-4" /> Fila</TabsTrigger>
-          <TabsTrigger value="offices" className="gap-2"><DoorOpen className="w-4 h-4" /> Consultórios</TabsTrigger>
-          <TabsTrigger value="doctorTypes" className="gap-2"><Stethoscope className="w-4 h-4" /> Tipos</TabsTrigger>
-          <TabsTrigger value="users" className="gap-2"><Shield className="w-4 h-4" /> Usuários</TabsTrigger>
-          <TabsTrigger value="metrics" className="gap-2"><BarChart3 className="w-4 h-4" /> Métricas</TabsTrigger>
-          <TabsTrigger value="overview" className="gap-2"><Settings className="w-4 h-4" /> Visão</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="rules" className="gap-1 text-xs"><Sliders className="w-4 h-4" /> Fila</TabsTrigger>
+          <TabsTrigger value="offices" className="gap-1 text-xs"><DoorOpen className="w-4 h-4" /> Consultórios</TabsTrigger>
+          <TabsTrigger value="doctorTypes" className="gap-1 text-xs"><Stethoscope className="w-4 h-4" /> Tipos</TabsTrigger>
+          <TabsTrigger value="doctors" className="gap-1 text-xs"><UserCheck className="w-4 h-4" /> Médicos</TabsTrigger>
+          <TabsTrigger value="users" className="gap-1 text-xs"><Shield className="w-4 h-4" /> Usuários</TabsTrigger>
+          <TabsTrigger value="metrics" className="gap-1 text-xs"><BarChart3 className="w-4 h-4" /> Métricas</TabsTrigger>
+          <TabsTrigger value="overview" className="gap-1 text-xs"><Settings className="w-4 h-4" /> Visão</TabsTrigger>
         </TabsList>
 
         {/* ===== QUEUE RULES TAB ===== */}
@@ -190,29 +225,22 @@ const AdminPage = () => {
             <h2 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
               <Sliders className="w-5 h-5 text-accent" /> Configuração da Fila
             </h2>
-
             <div className="bg-accent/10 border border-accent/20 rounded-lg p-4 mb-6">
               <p className="text-sm text-foreground font-medium">📌 Regra ativa:</p>
               <p className="text-lg text-accent font-bold mt-1">
                 {queueRules.normalBeforePriority} normal(is) → {queueRules.priorityCount} prioritário(s)
               </p>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  🔢 Normais antes do prioritário
-                </label>
+                <label className="text-sm font-medium text-foreground block mb-2">🔢 Normais antes do prioritário</label>
                 <Input type="number" min="1" max="10" value={normalCount} onChange={e => setNormalCount(e.target.value)} className="text-lg" />
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground block mb-2">
-                  ⭐ Prioritários na sequência
-                </label>
+                <label className="text-sm font-medium text-foreground block mb-2">⭐ Prioritários na sequência</label>
                 <Input type="number" min="1" max="5" value={priorityCount} onChange={e => setPriorityCount(e.target.value)} className="text-lg" />
               </div>
             </div>
-
             <Button onClick={handleSaveRules} className="mt-6 bg-accent text-accent-foreground hover:bg-accent/90 gap-2">
               <Save className="w-4 h-4" /> Salvar Regra
             </Button>
@@ -225,17 +253,11 @@ const AdminPage = () => {
             <h2 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
               <DoorOpen className="w-5 h-5 text-accent" /> Consultórios
             </h2>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="text-sm font-medium text-foreground block mb-2">Adicionar individualmente</label>
                 <div className="flex gap-2">
-                  <Input
-                    placeholder="Nome do consultório"
-                    value={newOfficeName}
-                    onChange={e => setNewOfficeName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAddOffice()}
-                  />
+                  <Input placeholder="Nome do consultório" value={newOfficeName} onChange={e => setNewOfficeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddOffice()} />
                   <Button onClick={handleAddOffice} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!newOfficeName.trim()}>
                     <Plus className="w-4 h-4" /> Criar
                   </Button>
@@ -244,15 +266,7 @@ const AdminPage = () => {
               <div>
                 <label className="text-sm font-medium text-foreground block mb-2">Criar por quantidade</label>
                 <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    min="1"
-                    max="20"
-                    placeholder="Quantidade"
-                    value={bulkCount}
-                    onChange={e => setBulkCount(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleBulkOffices()}
-                  />
+                  <Input type="number" min="1" max="20" placeholder="Quantidade" value={bulkCount} onChange={e => setBulkCount(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleBulkOffices()} />
                   <Button onClick={handleBulkOffices} className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2" disabled={!bulkCount || parseInt(bulkCount) < 1}>
                     <Plus className="w-4 h-4" /> Gerar
                   </Button>
@@ -260,7 +274,6 @@ const AdminPage = () => {
                 <p className="text-xs text-muted-foreground mt-1">Gera "Consultório 1, 2, 3..." automaticamente</p>
               </div>
             </div>
-
             <div className="space-y-2">
               {offices.map(o => {
                 const isEditing = editingOfficeId === o.id;
@@ -268,42 +281,23 @@ const AdminPage = () => {
                   <div key={o.id} className={`flex items-center gap-3 p-3 rounded-lg ${o.active ? 'bg-muted/30' : 'bg-muted/10 opacity-60'}`}>
                     {isEditing ? (
                       <>
-                        <Input
-                          value={editingOfficeName}
-                          onChange={e => setEditingOfficeName(e.target.value)}
-                          className="flex-1"
-                          onKeyDown={e => e.key === 'Enter' && handleSaveOffice()}
-                        />
-                        <Button size="sm" onClick={handleSaveOffice} className="bg-accent text-accent-foreground gap-1">
-                          <Save className="w-3 h-3" /> Salvar
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingOfficeId(null)}>
-                          <X className="w-3 h-3" />
-                        </Button>
+                        <Input value={editingOfficeName} onChange={e => setEditingOfficeName(e.target.value)} className="flex-1" onKeyDown={e => e.key === 'Enter' && handleSaveOffice()} />
+                        <Button size="sm" onClick={handleSaveOffice} className="bg-accent text-accent-foreground gap-1"><Save className="w-3 h-3" /> Salvar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingOfficeId(null)}><X className="w-3 h-3" /></Button>
                       </>
                     ) : (
                       <>
                         <DoorOpen className="w-5 h-5 text-primary" />
-                        <div className="flex-1">
-                          <div className="font-medium text-foreground">{o.name}</div>
-                        </div>
-                        <span className={`text-xs px-2 py-1 rounded-full ${o.active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
-                          {o.active ? 'Ativo' : 'Inativo'}
-                        </span>
-                        <Button size="sm" variant="ghost" onClick={() => { setEditingOfficeId(o.id); setEditingOfficeName(o.name); }}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => toggleOfficeActive(o.id)}>
-                          {o.active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </Button>
+                        <div className="flex-1"><div className="font-medium text-foreground">{o.name}</div></div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${o.active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>{o.active ? 'Ativo' : 'Inativo'}</span>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditingOfficeId(o.id); setEditingOfficeName(o.name); }}><Pencil className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => toggleOfficeActive(o.id)}>{o.active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</Button>
                       </>
                     )}
                   </div>
                 );
               })}
-              {offices.length === 0 && (
-                <p className="text-muted-foreground text-center py-6">Nenhum consultório cadastrado</p>
-              )}
+              {offices.length === 0 && <p className="text-muted-foreground text-center py-6">Nenhum consultório cadastrado</p>}
             </div>
           </div>
         </TabsContent>
@@ -314,19 +308,12 @@ const AdminPage = () => {
             <h2 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
               <Stethoscope className="w-5 h-5 text-accent" /> Tipos de Médico
             </h2>
-
             <div className="flex gap-2 mb-6">
-              <Input
-                placeholder="Nome do novo tipo (ex: Cardiologista)"
-                value={newTypeName}
-                onChange={e => setNewTypeName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddType()}
-              />
+              <Input placeholder="Nome do novo tipo (ex: Cardiologista)" value={newTypeName} onChange={e => setNewTypeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddType()} />
               <Button onClick={handleAddType} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!newTypeName.trim()}>
                 <Plus className="w-4 h-4" /> Adicionar
               </Button>
             </div>
-
             <div className="space-y-2">
               {doctorTypes.map(dt => {
                 const isEditing = editingTypeId === dt.id;
@@ -335,42 +322,71 @@ const AdminPage = () => {
                   <div key={dt.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                     {isEditing ? (
                       <>
-                        <Input
-                          value={editingTypeName}
-                          onChange={e => setEditingTypeName(e.target.value)}
-                          className="flex-1"
-                          onKeyDown={e => e.key === 'Enter' && handleSaveType()}
-                        />
-                        <Button size="sm" onClick={handleSaveType} className="bg-accent text-accent-foreground gap-1">
-                          <Save className="w-3 h-3" /> Salvar
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingTypeId(null)}>
-                          <X className="w-3 h-3" />
-                        </Button>
+                        <Input value={editingTypeName} onChange={e => setEditingTypeName(e.target.value)} className="flex-1" onKeyDown={e => e.key === 'Enter' && handleSaveType()} />
+                        <Button size="sm" onClick={handleSaveType} className="bg-accent text-accent-foreground gap-1"><Save className="w-3 h-3" /> Salvar</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingTypeId(null)}><X className="w-3 h-3" /></Button>
                       </>
                     ) : (
                       <>
                         <Stethoscope className="w-5 h-5 text-primary" />
                         <div className="flex-1">
                           <div className="font-medium text-foreground">{dt.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {doctorsOfType.length} médico(s) vinculado(s)
-                          </div>
+                          <div className="text-xs text-muted-foreground">{doctorsOfType.length} médico(s) vinculado(s)</div>
                         </div>
-                        <Button size="sm" variant="ghost" onClick={() => { setEditingTypeId(dt.id); setEditingTypeName(dt.name); }}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => deleteDoctorType(dt.id)} className="text-destructive hover:text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setEditingTypeId(dt.id); setEditingTypeName(dt.name); }}><Pencil className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => deleteDoctorType(dt.id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                       </>
                     )}
                   </div>
                 );
               })}
-              {doctorTypes.length === 0 && (
-                <p className="text-muted-foreground text-center py-6">Nenhum tipo cadastrado</p>
-              )}
+              {doctorTypes.length === 0 && <p className="text-muted-foreground text-center py-6">Nenhum tipo cadastrado</p>}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* ===== DOCTORS TAB ===== */}
+        <TabsContent value="doctors">
+          <div className="panel-card bg-card border border-border">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-accent" /> Gestão de Médicos
+              </h2>
+              <Button onClick={openNewDoctor} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2">
+                <UserPlus className="w-4 h-4" /> Novo Médico
+              </Button>
+            </div>
+            {doctorTypes.length === 0 && (
+              <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 mb-4 text-sm text-warning">
+                ⚠️ Cadastre ao menos um "Tipo de Médico" antes de criar médicos.
+              </div>
+            )}
+            <div className="space-y-3">
+              {doctors.map(d => {
+                const spec = specialties.find(s => s.id === d.specialtyId);
+                const dtype = doctorTypes.find(dt => dt.id === d.doctorTypeId);
+                const queueCount = tickets.filter(t => t.doctorId === d.id && t.status === 'aguardando_medico').length;
+                return (
+                  <div key={d.id} className="flex items-center gap-4 p-4 rounded-lg bg-muted/30 border border-border">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                      {d.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-foreground truncate">{d.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {spec?.name} • {d.room}
+                        {dtype && <span className="ml-1 text-xs text-accent">• {dtype.name}</span>}
+                      </div>
+                    </div>
+                    <span className="text-sm bg-accent/10 text-accent px-2 py-1 rounded-full">{queueCount} na fila</span>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => openEditDoctor(d)} className="h-8 w-8"><Pencil className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => deleteDoctor(d.id)} className="h-8 w-8 text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {doctors.length === 0 && <p className="text-muted-foreground text-center py-6">Nenhum médico cadastrado</p>}
             </div>
           </div>
         </TabsContent>
@@ -386,18 +402,10 @@ const AdminPage = () => {
                 <UserPlus className="w-4 h-4" /> Novo Usuário
               </Button>
             </div>
-
             <div className="space-y-3">
               {users.map(u => (
-                <div
-                  key={u.id}
-                  className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
-                    u.active ? 'bg-muted/30 border-border' : 'bg-muted/10 border-border/50 opacity-60'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                    {u.name.charAt(0)}
-                  </div>
+                <div key={u.id} className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${u.active ? 'bg-muted/30 border-border' : 'bg-muted/10 border-border/50 opacity-60'}`}>
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">{u.name.charAt(0)}</div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-foreground truncate">{u.name}</div>
                     <div className="text-sm text-muted-foreground truncate">{u.email}</div>
@@ -407,21 +415,11 @@ const AdminPage = () => {
                     u.role === 'doctor' ? 'bg-accent/10 text-accent' :
                     u.role === 'receptionist' ? 'bg-info/10 text-info' :
                     'bg-muted text-muted-foreground'
-                  }`}>
-                    {ROLE_LABELS[u.role]}
-                  </span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    u.active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {u.active ? 'Ativo' : 'Inativo'}
-                  </span>
+                  }`}>{ROLE_LABELS[u.role]}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${u.active ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>{u.active ? 'Ativo' : 'Inativo'}</span>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditUser(u)} className="h-8 w-8">
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => toggleUserActive(u.id)} className="h-8 w-8">
-                      {u.active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => openEditUser(u)} className="h-8 w-8"><Pencil className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => toggleUserActive(u.id)} className="h-8 w-8">{u.active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</Button>
                   </div>
                 </div>
               ))}
@@ -479,9 +477,7 @@ const AdminPage = () => {
                   const doneCount = tickets.filter(t => t.doctorId === d.id && t.status === 'finalizado').length;
                   return (
                     <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                        {d.name.charAt(0)}
-                      </div>
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">{d.name.charAt(0)}</div>
                       <div className="flex-1">
                         <div className="font-medium text-foreground">{d.name}</div>
                         <div className="text-sm text-muted-foreground">
@@ -496,9 +492,9 @@ const AdminPage = () => {
                     </div>
                   );
                 })}
+                {doctors.length === 0 && <p className="text-muted-foreground text-center py-4">Nenhum médico cadastrado</p>}
               </div>
             </div>
-
             <div className="panel-card bg-card border border-border">
               <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Users className="w-5 h-5 text-accent" /> Especialidades
@@ -509,9 +505,7 @@ const AdminPage = () => {
                   return (
                     <div key={s.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
                       <span className="text-2xl">{s.icon}</span>
-                      <div className="flex-1">
-                        <div className="font-medium text-foreground">{s.name}</div>
-                      </div>
+                      <div className="flex-1"><div className="font-medium text-foreground">{s.name}</div></div>
                       <span className="text-sm text-muted-foreground">{count} atendimentos</span>
                     </div>
                   );
@@ -538,9 +532,7 @@ const AdminPage = () => {
               <Input placeholder="email@cliniplus.com" value={userEmail} onChange={e => setUserEmail(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground block mb-1">
-                {editingUser ? 'Nova Senha (deixe vazio para manter)' : 'Senha *'}
-              </label>
+              <label className="text-sm font-medium text-foreground block mb-1">{editingUser ? 'Nova Senha (deixe vazio para manter)' : 'Senha *'}</label>
               <Input type="password" placeholder="••••••" value={userPassword} onChange={e => setUserPassword(e.target.value)} />
             </div>
             <div>
@@ -556,36 +548,73 @@ const AdminPage = () => {
               </Select>
             </div>
             {userRole === 'doctor' && (
-              <>
-                <div>
-                  <label className="text-sm font-medium text-foreground block mb-1">Vincular ao Médico</label>
-                  <Select value={userDoctorId} onValueChange={setUserDoctorId}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o médico" /></SelectTrigger>
-                    <SelectContent>
-                      {doctors.map(d => (
-                        <SelectItem key={d.id} value={d.id}>{d.name} - {d.room}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-foreground block mb-1">Tipo de Médico *</label>
-                  <Select value={userDoctorTypeId} onValueChange={setUserDoctorTypeId}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
-                    <SelectContent>
-                      {doctorTypes.map(dt => (
-                        <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+              <div>
+                <label className="text-sm font-medium text-foreground block mb-1">Vincular ao Médico</label>
+                <Select value={userDoctorId} onValueChange={setUserDoctorId}>
+                  <SelectTrigger><SelectValue placeholder="Selecione o médico" /></SelectTrigger>
+                  <SelectContent>
+                    {doctors.map(d => (
+                      <SelectItem key={d.id} value={d.id}>{d.name} - {d.room}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             <div className="flex gap-2">
               <Button onClick={handleSaveUser} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!userName || !userEmail || (!editingUser && !userPassword)}>
                 <Save className="w-4 h-4" /> {editingUser ? 'Salvar' : 'Criar Usuário'}
               </Button>
               <Button variant="outline" onClick={() => setShowUserForm(false)} className="gap-2">
+                <X className="w-4 h-4" /> Cancelar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Doctor Form Dialog */}
+      <Dialog open={showDoctorForm} onOpenChange={setShowDoctorForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingDoctorId ? 'Editar Médico' : 'Novo Médico'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Nome *</label>
+              <Input placeholder="Dr(a). Nome" value={doctorName} onChange={e => setDoctorName(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Tipo de Médico *</label>
+              <Select value={doctorTypeId} onValueChange={setDoctorTypeId}>
+                <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
+                <SelectContent>
+                  {doctorTypes.map(dt => (
+                    <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {doctorTypes.length === 0 && <p className="text-xs text-warning mt-1">Cadastre tipos de médico primeiro</p>}
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Especialidade *</label>
+              <Select value={doctorSpecialtyId} onValueChange={setDoctorSpecialtyId}>
+                <SelectTrigger><SelectValue placeholder="Selecione a especialidade" /></SelectTrigger>
+                <SelectContent>
+                  {specialties.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.icon} {s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-1">Sala *</label>
+              <Input placeholder="Ex: Sala 01" value={doctorRoom} onChange={e => setDoctorRoom(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleSaveDoctor} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!doctorName || !doctorSpecialtyId || !doctorRoom || !doctorTypeId}>
+                <Save className="w-4 h-4" /> {editingDoctorId ? 'Salvar' : 'Criar Médico'}
+              </Button>
+              <Button variant="outline" onClick={() => setShowDoctorForm(false)} className="gap-2">
                 <X className="w-4 h-4" /> Cancelar
               </Button>
             </div>
