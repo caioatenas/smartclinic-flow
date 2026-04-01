@@ -10,23 +10,7 @@ const SPECIALTIES: Specialty[] = [
   { id: '6', name: 'Oftalmologia', icon: '👁️' },
 ];
 
-const DOCTORS: Doctor[] = [
-  { id: 'd1', name: 'Dr. Carlos Silva', specialtyId: '1', room: 'Sala 01', doctorTypeId: 'dt1' },
-  { id: 'd2', name: 'Dra. Ana Souza', specialtyId: '2', room: 'Sala 02', doctorTypeId: 'dt1' },
-  { id: 'd3', name: 'Dr. Pedro Lima', specialtyId: '3', room: 'Sala 03', doctorTypeId: 'dt1' },
-  { id: 'd4', name: 'Dra. Maria Oliveira', specialtyId: '4', room: 'Sala 04', doctorTypeId: 'dt1' },
-  { id: 'd5', name: 'Dra. Juliana Costa', specialtyId: '5', room: 'Sala 05', doctorTypeId: 'dt2' },
-  { id: 'd6', name: 'Dr. Roberto Mendes', specialtyId: '6', room: 'Sala 06', doctorTypeId: 'dt1' },
-];
-
 const DEFAULT_QUEUE_RULES: QueueRules = { normalBeforePriority: 2, priorityCount: 1 };
-
-const DEFAULT_DOCTOR_TYPES: DoctorType[] = [
-  { id: 'dt1', name: 'Clínico Geral' },
-  { id: 'dt2', name: 'Pediatra' },
-  { id: 'dt3', name: 'Odontologista' },
-  { id: 'dt4', name: 'Otorrino' },
-];
 
 const DEFAULT_OFFICES: Office[] = [
   { id: 'of1', name: 'Consultório 1', active: true },
