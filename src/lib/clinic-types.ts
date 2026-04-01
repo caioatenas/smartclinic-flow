@@ -72,9 +72,21 @@ export interface PrescriptionItem {
   instructions: string;
 }
 
+export interface Appointment {
+  id: string;
+  doctorId: string;
+  doctorTypeId: string;
+  patientName: string;
+  patientCpf?: string;
+  patientPhone?: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  createdAt: Date;
+}
+
 export interface QueueRules {
-  normalBeforePriority: number; // how many normal before 1 priority
-  priorityCount: number; // how many priority after N normal
+  normalBeforePriority: number;
+  priorityCount: number;
 }
 
 export interface SystemUser {
