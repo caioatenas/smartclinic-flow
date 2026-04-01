@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
-import { ArrowLeft, Activity, Phone, User, CreditCard, ChevronRight, Clock, Info } from 'lucide-react';
+import { ArrowLeft, Activity, Phone, User, CreditCard, ChevronRight, Clock, Info, CalendarPlus, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatDuration, tempoEsperaAtual } from '@/lib/time-utils';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import AppointmentDialog from '@/components/AppointmentDialog';
 
 const ReceptionPage = () => {
   const navigate = useNavigate();
-  const { tickets, specialties, queueRules, callNextReception, registerPatientAndForward } = useClinic();
+  const { tickets, specialties, queueRules, appointments, doctors, doctorTypes, callNextReception, registerPatientAndForward } = useClinic();
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
+  const [showSchedule, setShowSchedule] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -28,6 +32,11 @@ const ReceptionPage = () => {
   const inReception = tickets.filter(t => t.status === 'em_atendimento_recepcao');
   const waitingDoctor = tickets.filter(t => t.status === 'aguardando_medico');
   const getSpecialty = (id: string) => specialties.find(s => s.id === id);
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const todayAppointments = appointments
+    .filter(a => a.date === todayStr)
+    .sort((a, b) => a.time.localeCompare(b.time));
 
   const handleCallNext = () => {
     const called = callNextReception();
@@ -56,9 +65,14 @@ const ReceptionPage = () => {
         </button>
         <Activity className="w-6 h-6 text-accent" />
         <h1 className="text-2xl font-bold text-foreground">Recepção</h1>
-        <Button onClick={handleCallNext} className="ml-auto bg-accent text-accent-foreground hover:bg-accent/90" disabled={waitingReception.length === 0}>
-          Chamar Próximo
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <Button onClick={() => setShowSchedule(true)} variant="outline" className="gap-2">
+            <CalendarPlus className="w-4 h-4" /> Agendar Consulta
+          </Button>
+          <Button onClick={handleCallNext} className="bg-accent text-accent-foreground hover:bg-accent/90" disabled={waitingReception.length === 0}>
+            Chamar Próximo
+          </Button>
+        </div>
       </div>
 
       {/* Active queue rule banner */}
@@ -106,6 +120,31 @@ const ReceptionPage = () => {
               </div>
             ))}
           </div>
+
+          {/* Today's appointments */}
+          {todayAppointments.length > 0 && (
+            <>
+              <h2 className="text-lg font-semibold text-foreground mt-6 mb-4 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" /> Agendamentos Hoje ({todayAppointments.length})
+              </h2>
+              <div className="space-y-2">
+                {todayAppointments.map(a => {
+                  const doctor = doctors.find(d => d.id === a.doctorId);
+                  const dtype = doctorTypes.find(dt => dt.id === a.doctorTypeId);
+                  return (
+                    <div key={a.id} className="rounded-lg p-3 bg-primary/5 border border-primary/10">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-primary">{a.time}</span>
+                        <span className="text-xs text-muted-foreground">{dtype?.name}</span>
+                      </div>
+                      <div className="text-sm text-foreground">{a.patientName}</div>
+                      <div className="text-xs text-muted-foreground">{doctor?.name}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="panel-card bg-card border border-border lg:col-span-2">
@@ -136,6 +175,7 @@ const ReceptionPage = () => {
         </div>
       </div>
 
+      {/* Patient registration dialog */}
       <Dialog open={!!selectedTicket} onOpenChange={() => setSelectedTicket(null)}>
         <DialogContent>
           <DialogHeader>
@@ -165,6 +205,9 @@ const ReceptionPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Appointment scheduling dialog */}
+      <AppointmentDialog open={showSchedule} onOpenChange={setShowSchedule} />
     </div>
   );
 };
