@@ -133,7 +133,7 @@ const AssistantPage = () => {
                 onClick={() => setExpandedId(expanded ? null : t.id)}
               >
                 <div className="flex items-center gap-4">
-                  <div className={`text-lg font-bold min-w-[70px] ${t.priority === 'priority' ? 'text-warning' : 'text-primary'}`}>
+                  <div className={`text-lg font-bold min-w-[70px] ${t.priority === 'priority' ? 'text-warning' : t.priority === 'agendado' ? 'text-info' : 'text-primary'}`}>
                     {t.code}
                   </div>
                   <div className="flex-1 min-w-0">
