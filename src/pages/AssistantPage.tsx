@@ -61,7 +61,7 @@ const PatientTimeline = ({ t }: { t: Ticket }) => {
 
 const AssistantPage = () => {
   const navigate = useNavigate();
-  const { tickets, specialties, doctors, doctorTypes } = useClinic();
+  const { tickets, specialties, doctors } = useClinic();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
