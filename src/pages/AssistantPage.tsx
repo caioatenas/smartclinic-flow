@@ -140,7 +140,6 @@ const AssistantPage = () => {
                     <div className="font-medium text-foreground truncate">{t.patientName || 'Sem cadastro'}</div>
                     <div className="text-sm text-muted-foreground truncate">
                       {getSpecialty(t.specialtyId)?.name}
-                      {doctorType && <span className="ml-1 text-xs">• {doctorType.name}</span>}
                       {doctor && <span className="ml-1 text-xs">• {doctor.name}</span>}
                     </div>
                   </div>
