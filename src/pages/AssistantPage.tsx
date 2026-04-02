@@ -61,7 +61,7 @@ const PatientTimeline = ({ t }: { t: Ticket }) => {
 
 const AssistantPage = () => {
   const navigate = useNavigate();
-  const { tickets, specialties, doctors, doctorTypes } = useClinic();
+  const { tickets, specialties, doctors } = useClinic();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
@@ -73,7 +73,7 @@ const AssistantPage = () => {
 
   const getSpecialty = (id: string) => specialties.find(s => s.id === id);
   const getDoctor = (id?: string) => doctors.find(d => d.id === id);
-  const getDoctorType = (typeId?: string) => doctorTypes.find(dt => dt.id === typeId);
+  
 
   const sorted = [...tickets].sort((a, b) => {
     const order: Record<string, number> = { em_atendimento_medico: 0, em_atendimento_recepcao: 1, aguardando_medico: 2, aguardando_recepcao: 3, finalizado: 4 };
@@ -124,7 +124,6 @@ const AssistantPage = () => {
           {sorted.map(t => {
             const cfg = statusConfig[t.status] || { label: t.status, color: '' };
             const doctor = getDoctor(t.doctorId);
-            const doctorType = doctor ? getDoctorType(doctor.doctorTypeId) : null;
             const expanded = expandedId === t.id;
 
             return (
@@ -134,14 +133,13 @@ const AssistantPage = () => {
                 onClick={() => setExpandedId(expanded ? null : t.id)}
               >
                 <div className="flex items-center gap-4">
-                  <div className={`text-lg font-bold min-w-[70px] ${t.priority === 'priority' ? 'text-warning' : 'text-primary'}`}>
+                  <div className={`text-lg font-bold min-w-[70px] ${t.priority === 'priority' ? 'text-warning' : t.priority === 'agendado' ? 'text-info' : 'text-primary'}`}>
                     {t.code}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-foreground truncate">{t.patientName || 'Sem cadastro'}</div>
                     <div className="text-sm text-muted-foreground truncate">
                       {getSpecialty(t.specialtyId)?.name}
-                      {doctorType && <span className="ml-1 text-xs">• {doctorType.name}</span>}
                       {doctor && <span className="ml-1 text-xs">• {doctor.name}</span>}
                     </div>
                   </div>

@@ -28,6 +28,7 @@ const App = () => (
             <Route path="/panel" element={<WaitPanelPage />} />
             <Route path="/reception" element={<ReceptionPage />} />
             <Route path="/assistant" element={<AssistantPage />} />
+            <Route path="/doctor" element={<DoctorPage />} />
             <Route path="/doctor/:doctorId" element={<DoctorPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="*" element={<NotFound />} />

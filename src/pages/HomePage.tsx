@@ -9,7 +9,7 @@ const HomePage = () => {
     { label: 'Painel de Espera', path: '/panel', icon: '📺', desc: 'Visualizar senhas na TV', color: 'bg-panel text-panel-foreground' },
     { label: 'Recepção', path: '/reception', icon: '🧑‍💼', desc: 'Gerenciar fila e pacientes', color: 'bg-info text-info-foreground' },
     { label: 'Assistente', path: '/assistant', icon: '👩‍💻', desc: 'Acompanhar fila e status', color: 'bg-warning text-warning-foreground' },
-    { label: 'Médico', path: '/doctor/d1', icon: '👨‍⚕️', desc: 'Atender e prescrever', color: 'bg-success text-success-foreground' },
+    { label: 'Médico', path: '/doctor', icon: '👨‍⚕️', desc: 'Atender e prescrever', color: 'bg-success text-success-foreground' },
     { label: 'Administrador', path: '/admin', icon: '🛠️', desc: 'Configurações do sistema', color: 'bg-destructive text-destructive-foreground' },
   ];
 
