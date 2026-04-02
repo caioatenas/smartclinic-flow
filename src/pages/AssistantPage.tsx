@@ -124,7 +124,6 @@ const AssistantPage = () => {
           {sorted.map(t => {
             const cfg = statusConfig[t.status] || { label: t.status, color: '' };
             const doctor = getDoctor(t.doctorId);
-            const doctorType = doctor ? getDoctorType(doctor.doctorTypeId) : null;
             const expanded = expandedId === t.id;
 
             return (
