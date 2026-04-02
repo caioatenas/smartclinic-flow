@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const TIME_SLOTS = [
@@ -25,10 +24,10 @@ interface Props {
 }
 
 export default function AppointmentDialog({ open, onOpenChange }: Props) {
-  const { doctors, doctorTypes, appointments, addAppointment } = useClinic();
+  const { doctors, specialties, appointments, addAppointment } = useClinic();
 
   const [flow, setFlow] = useState<'byDoctor' | 'byDate'>('byDoctor');
-  const [selectedTypeId, setSelectedTypeId] = useState('');
+  const [selectedSpecialtyId, setSelectedSpecialtyId] = useState('');
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState('');
@@ -37,7 +36,7 @@ export default function AppointmentDialog({ open, onOpenChange }: Props) {
   const [patientPhone, setPatientPhone] = useState('');
 
   const resetForm = () => {
-    setSelectedTypeId('');
+    setSelectedSpecialtyId('');
     setSelectedDoctorId('');
     setSelectedDate(undefined);
     setSelectedTime('');
@@ -46,40 +45,51 @@ export default function AppointmentDialog({ open, onOpenChange }: Props) {
     setPatientPhone('');
   };
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   const dateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
 
   const filteredDoctors = useMemo(() => {
-    if (flow === 'byDoctor' && selectedTypeId) {
-      return doctors.filter(d => d.doctorTypeId === selectedTypeId);
+    if (flow === 'byDoctor' && selectedSpecialtyId) {
+      return doctors.filter(d => d.specialtyId === selectedSpecialtyId);
     }
-    if (flow === 'byDate' && dateStr) {
-      return doctors;
-    }
-    return [];
-  }, [flow, selectedTypeId, dateStr, doctors]);
+    return doctors;
+  }, [flow, selectedSpecialtyId, doctors]);
+
+  const activeAppointments = useMemo(() => {
+    return appointments.filter(a => a.status !== 'cancelado');
+  }, [appointments]);
 
   const bookedTimes = useMemo(() => {
     if (!selectedDoctorId || !dateStr) return new Set<string>();
     return new Set(
-      appointments
+      activeAppointments
         .filter(a => a.doctorId === selectedDoctorId && a.date === dateStr)
         .map(a => a.time)
     );
-  }, [selectedDoctorId, dateStr, appointments]);
+  }, [selectedDoctorId, dateStr, activeAppointments]);
 
-  const availableSlots = TIME_SLOTS.filter(t => !bookedTimes.has(t));
+  // Filter past times if selected date is today
+  const isToday = selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+  const nowTime = format(new Date(), 'HH:mm');
 
-  // Calendar availability colors
+  const availableSlots = TIME_SLOTS.filter(t => {
+    if (bookedTimes.has(t)) return false;
+    if (isToday && t <= nowTime) return false;
+    return true;
+  });
+
   const getDateAvailability = (date: Date) => {
     const ds = format(date, 'yyyy-MM-dd');
     if (!selectedDoctorId) {
-      const totalBooked = appointments.filter(a => a.date === ds).length;
+      const totalBooked = activeAppointments.filter(a => a.date === ds).length;
       const ratio = totalBooked / TIME_SLOTS.length;
       if (ratio >= 1) return 'full';
       if (ratio >= 0.5) return 'medium';
       return 'available';
     }
-    const booked = appointments.filter(a => a.doctorId === selectedDoctorId && a.date === ds).length;
+    const booked = activeAppointments.filter(a => a.doctorId === selectedDoctorId && a.date === ds).length;
     const ratio = booked / TIME_SLOTS.length;
     if (ratio >= 1) return 'full';
     if (ratio >= 0.5) return 'medium';
@@ -91,7 +101,7 @@ export default function AppointmentDialog({ open, onOpenChange }: Props) {
     const doctor = doctors.find(d => d.id === selectedDoctorId);
     addAppointment({
       doctorId: selectedDoctorId,
-      doctorTypeId: doctor?.doctorTypeId || '',
+      specialtyId: doctor?.specialtyId || '',
       patientName,
       patientCpf: patientCpf || undefined,
       patientPhone: patientPhone || undefined,
@@ -126,40 +136,37 @@ export default function AppointmentDialog({ open, onOpenChange }: Props) {
 
         <Tabs value={flow} onValueChange={v => { setFlow(v as any); resetForm(); }}>
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="byDoctor">Por Médico</TabsTrigger>
+            <TabsTrigger value="byDoctor">Por Especialidade</TabsTrigger>
             <TabsTrigger value="byDate">Por Data</TabsTrigger>
           </TabsList>
 
-          {/* FLOW 1: By Doctor */}
+          {/* FLOW 1: By Specialty/Doctor */}
           <TabsContent value="byDoctor" className="space-y-4 mt-4">
             <div>
-              <label className="text-sm font-medium text-foreground block mb-1">Tipo de Médico *</label>
-              <Select value={selectedTypeId} onValueChange={v => { setSelectedTypeId(v); setSelectedDoctorId(''); }}>
-                <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
+              <label className="text-sm font-medium text-foreground block mb-1">Especialidade *</label>
+              <Select value={selectedSpecialtyId} onValueChange={v => { setSelectedSpecialtyId(v); setSelectedDoctorId(''); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione a especialidade" /></SelectTrigger>
                 <SelectContent>
-                  {doctorTypes.map(dt => (
-                    <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>
+                  {specialties.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.icon} {s.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {doctorTypes.length === 0 && (
-                <p className="text-xs text-warning mt-1">Cadastre tipos de médico no painel do administrador</p>
-              )}
             </div>
 
-            {selectedTypeId && (
+            {selectedSpecialtyId && (
               <div>
                 <label className="text-sm font-medium text-foreground block mb-1">Médico *</label>
                 <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
                   <SelectTrigger><SelectValue placeholder="Selecione o médico" /></SelectTrigger>
                   <SelectContent>
                     {filteredDoctors.map(d => (
-                      <SelectItem key={d.id} value={d.id}>{d.name} - {d.room}</SelectItem>
+                      <SelectItem key={d.id} value={d.id}>{d.name}{d.crm ? ` (CRM: ${d.crm})` : ''}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {filteredDoctors.length === 0 && (
-                  <p className="text-xs text-warning mt-1">Nenhum médico cadastrado para este tipo</p>
+                  <p className="text-xs text-warning mt-1">Nenhum médico cadastrado para esta especialidade</p>
                 )}
               </div>
             )}
@@ -172,7 +179,7 @@ export default function AppointmentDialog({ open, onOpenChange }: Props) {
                     mode="single"
                     selected={selectedDate}
                     onSelect={d => { setSelectedDate(d); setSelectedTime(''); }}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    disabled={(date) => date < today}
                     locale={ptBR}
                     modifiers={modifiers}
                     modifiersStyles={modifiersStyles}
@@ -197,7 +204,7 @@ export default function AppointmentDialog({ open, onOpenChange }: Props) {
                   mode="single"
                   selected={selectedDate}
                   onSelect={d => { setSelectedDate(d); setSelectedDoctorId(''); setSelectedTime(''); }}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  disabled={(date) => date < today}
                   locale={ptBR}
                   modifiers={modifiers}
                   modifiersStyles={modifiersStyles}
@@ -213,12 +220,12 @@ export default function AppointmentDialog({ open, onOpenChange }: Props) {
                   <SelectTrigger><SelectValue placeholder="Selecione o médico" /></SelectTrigger>
                   <SelectContent>
                     {doctors.map(d => {
-                      const dtype = doctorTypes.find(dt => dt.id === d.doctorTypeId);
-                      const booked = appointments.filter(a => a.doctorId === d.id && a.date === dateStr).length;
+                      const spec = specialties.find(s => s.id === d.specialtyId);
+                      const booked = activeAppointments.filter(a => a.doctorId === d.id && a.date === dateStr).length;
                       const free = TIME_SLOTS.length - booked;
                       return (
                         <SelectItem key={d.id} value={d.id} disabled={free === 0}>
-                          {d.name} {dtype ? `(${dtype.name})` : ''} — {free} horários livres
+                          {d.name} ({spec?.name}) — {free} horários livres
                         </SelectItem>
                       );
                     })}
@@ -235,22 +242,26 @@ export default function AppointmentDialog({ open, onOpenChange }: Props) {
         {/* Time slots */}
         {selectedDoctorId && selectedDate && (
           <div>
-            <label className="text-sm font-medium text-foreground block mb-2 flex items-center gap-1">
-              <Clock className="w-4 h-4" /> Horário * ({availableSlots.length} disponíveis)
+            <label className="text-sm font-medium text-foreground block mb-2">
+              <span className="flex items-center gap-1">
+                <Clock className="w-4 h-4" /> Horário * ({availableSlots.length} disponíveis)
+              </span>
             </label>
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
               {TIME_SLOTS.map(t => {
                 const isBooked = bookedTimes.has(t);
+                const isPast = !!(isToday && t <= nowTime);
+                const isUnavailable = isBooked || isPast;
                 const isSelected = selectedTime === t;
                 return (
                   <button
                     key={t}
-                    disabled={isBooked}
+                    disabled={isUnavailable}
                     onClick={() => setSelectedTime(t)}
                     className={cn(
                       "py-2 px-3 rounded-lg text-sm font-medium transition-colors border",
-                      isBooked && "bg-muted/30 text-muted-foreground border-border cursor-not-allowed line-through",
-                      !isBooked && !isSelected && "bg-card border-border text-foreground hover:bg-accent/10 hover:border-accent/30",
+                      isUnavailable && "bg-muted/30 text-muted-foreground border-border cursor-not-allowed line-through",
+                      !isUnavailable && !isSelected && "bg-card border-border text-foreground hover:bg-accent/10 hover:border-accent/30",
                       isSelected && "bg-accent text-accent-foreground border-accent",
                     )}
                   >

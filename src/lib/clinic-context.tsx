@@ -88,18 +88,23 @@ function loadState() {
     if (!raw) return null;
     const data: StoredState = JSON.parse(raw);
     return {
-      tickets: data.tickets.map(deserializeTicket),
-      records: data.records.map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
-      prescriptions: data.prescriptions.map(p => ({ ...p, date: new Date(p.date) })),
-      normalCounter: data.normalCounter,
-      priorityCounter: data.priorityCounter,
+      tickets: (data.tickets || []).map(deserializeTicket),
+      records: (data.records || []).map(r => ({ ...r, createdAt: new Date(r.createdAt) })),
+      prescriptions: (data.prescriptions || []).map(p => ({ ...p, date: new Date(p.date) })),
+      normalCounter: data.normalCounter || 0,
+      priorityCounter: data.priorityCounter || 0,
       queueRules: data.queueRules || DEFAULT_QUEUE_RULES,
       normalCalledSinceLastPriority: data.normalCalledSinceLastPriority || 0,
       users: data.users || DEFAULT_USERS,
       doctorTypes: data.doctorTypes || [],
       offices: data.offices || DEFAULT_OFFICES,
-      doctors: data.doctors || [],
-      appointments: (data.appointments || []).map((a: any) => ({ ...a, createdAt: new Date(a.createdAt) })),
+      doctors: (data.doctors || []).map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        specialtyId: d.specialtyId,
+        crm: d.crm || '',
+      })),
+      appointments: (data.appointments || []).map((a: any) => ({ ...a, status: a.status || 'agendado', createdAt: new Date(a.createdAt) })),
     };
   } catch { return null; }
 }
@@ -138,8 +143,10 @@ interface ClinicContextType {
   addDoctor: (doctor: Omit<Doctor, 'id'>) => void;
   updateDoctor: (id: string, data: Partial<Doctor>) => void;
   deleteDoctor: (id: string) => void;
-  addAppointment: (appointment: Omit<Appointment, 'id' | 'createdAt'>) => void;
+  addAppointment: (appointment: Omit<Appointment, 'id' | 'createdAt' | 'status'>) => void;
   cancelAppointment: (id: string) => void;
+  checkinAppointment: (id: string) => Ticket | null;
+  rescheduleAppointment: (id: string, newDate: string, newTime: string) => void;
   getAppointmentsForDoctor: (doctorId: string, date: string) => Appointment[];
   getAppointmentsForDate: (date: string) => Appointment[];
 }
@@ -149,6 +156,7 @@ const ClinicContext = createContext<ClinicContextType | null>(null);
 let normalCounter = 0;
 let priorityCounter = 0;
 let normalCalledSinceLastPriority = 0;
+let agendadoCounter = 0;
 
 export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -217,9 +225,30 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const sortByCreatedAt = (list: Ticket[]) =>
     [...list].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
-  const createTicket = useCallback((priority: Priority, specialtyId: string) => {
-    const prefix = priority === 'priority' ? 'P' : 'N';
-    const counter = priority === 'priority' ? ++priorityCounter : ++normalCounter;
+  // Sort queue: priority first, then agendado, then normal
+  const sortByPriority = (list: Ticket[]) => {
+    const priorityOrder: Record<Priority, number> = { priority: 0, agendado: 1, normal: 2 };
+    return [...list].sort((a, b) => {
+      const pa = priorityOrder[a.priority] ?? 2;
+      const pb = priorityOrder[b.priority] ?? 2;
+      if (pa !== pb) return pa - pb;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
+  };
+
+  const createTicket = useCallback((priority: Priority, specialtyId: string, appointmentId?: string, patientName?: string, patientCpf?: string, patientPhone?: string) => {
+    let prefix: string;
+    let counter: number;
+    if (priority === 'priority') {
+      prefix = 'P';
+      counter = ++priorityCounter;
+    } else if (priority === 'agendado') {
+      prefix = 'A';
+      counter = ++agendadoCounter;
+    } else {
+      prefix = 'N';
+      counter = ++normalCounter;
+    }
     const code = `${prefix}${String(counter).padStart(3, '0')}`;
     const now = new Date();
 
@@ -231,6 +260,10 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       status: 'aguardando_recepcao',
       createdAt: now,
       horaChegada: now,
+      appointmentId,
+      patientName,
+      patientCpf,
+      patientPhone,
     };
 
     setTickets(prev => [...prev, ticket]);
@@ -240,22 +273,31 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const callNextReception = useCallback(() => {
     let called: Ticket | null = null;
     setTickets(prev => {
-      const waitingNormal = sortByCreatedAt(prev.filter(t => t.status === 'aguardando_recepcao' && t.priority === 'normal'));
-      const waitingPriority = sortByCreatedAt(prev.filter(t => t.status === 'aguardando_recepcao' && t.priority === 'priority'));
+      const waiting = prev.filter(t => t.status === 'aguardando_recepcao');
+      const waitingNormal = sortByCreatedAt(waiting.filter(t => t.priority === 'normal'));
+      const waitingPriority = sortByCreatedAt(waiting.filter(t => t.priority === 'priority'));
+      const waitingAgendado = sortByCreatedAt(waiting.filter(t => t.priority === 'agendado'));
 
+      // Priority order: priority > agendado > normal
       let next: Ticket | undefined;
 
       const shouldCallPriority = waitingPriority.length > 0 && (
         normalCalledSinceLastPriority >= queueRules.normalBeforePriority ||
-        waitingNormal.length === 0
+        (waitingNormal.length === 0 && waitingAgendado.length === 0)
       );
 
       if (shouldCallPriority) {
         next = waitingPriority[0];
         normalCalledSinceLastPriority = 0;
+      } else if (waitingAgendado.length > 0) {
+        next = waitingAgendado[0];
+        normalCalledSinceLastPriority++;
       } else if (waitingNormal.length > 0) {
         next = waitingNormal[0];
         normalCalledSinceLastPriority++;
+      } else if (waitingPriority.length > 0) {
+        next = waitingPriority[0];
+        normalCalledSinceLastPriority = 0;
       } else {
         return prev;
       }
@@ -280,7 +322,6 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
         patientPhone: phone,
         status: 'aguardando_medico' as const,
         doctorId: doctor?.id,
-        room: doctor?.room,
         horaFimRecepcao: new Date(),
       };
     }));
@@ -289,13 +330,10 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const callNextDoctor = useCallback((doctorId: string, officeId: string, officeName: string) => {
     let called: Ticket | null = null;
     setTickets(prev => {
-      const waiting = sortByCreatedAt(prev.filter(t => t.status === 'aguardando_medico' && t.doctorId === doctorId));
-      const priorityFirst = [
-        ...waiting.filter(t => t.priority === 'priority'),
-        ...waiting.filter(t => t.priority === 'normal'),
-      ];
-      if (priorityFirst.length === 0) return prev;
-      const next = priorityFirst[0];
+      const waiting = prev.filter(t => t.status === 'aguardando_medico' && t.doctorId === doctorId);
+      const sorted = sortByPriority(waiting);
+      if (sorted.length === 0) return prev;
+      const next = sorted[0];
       const now = new Date();
       called = { ...next, status: 'em_atendimento_medico', calledAt: now, horaChamadaMedico: now, officeId, officeName };
       return prev.map(t => t.id === next.id ? called! : t);
@@ -322,11 +360,8 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   }, [tickets]);
 
   const getDoctorQueue = useCallback((doctorId: string) => {
-    const waiting = sortByCreatedAt(tickets.filter(t => t.doctorId === doctorId && t.status === 'aguardando_medico'));
-    return [
-      ...waiting.filter(t => t.priority === 'priority'),
-      ...waiting.filter(t => t.priority === 'normal'),
-    ];
+    const waiting = tickets.filter(t => t.doctorId === doctorId && t.status === 'aguardando_medico');
+    return sortByPriority(waiting);
   }, [tickets]);
 
   const updateQueueRules = useCallback((rules: QueueRules) => {
@@ -392,37 +427,62 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     setDoctors(prev => prev.filter(d => d.id !== id));
   }, []);
 
-  const addAppointment = useCallback((appointment: Omit<Appointment, 'id' | 'createdAt'>) => {
+  const addAppointment = useCallback((appointment: Omit<Appointment, 'id' | 'createdAt' | 'status'>) => {
     setAppointments(prev => {
-      const exists = prev.some(a => a.doctorId === appointment.doctorId && a.date === appointment.date && a.time === appointment.time);
+      const exists = prev.some(a => a.doctorId === appointment.doctorId && a.date === appointment.date && a.time === appointment.time && a.status !== 'cancelado');
       if (exists) return prev;
-      return [...prev, { ...appointment, id: crypto.randomUUID(), createdAt: new Date() }];
+      return [...prev, { ...appointment, id: crypto.randomUUID(), status: 'agendado' as const, createdAt: new Date() }];
     });
   }, []);
 
   const cancelAppointment = useCallback((id: string) => {
-    setAppointments(prev => prev.filter(a => a.id !== id));
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'cancelado' as const } : a));
+  }, []);
+
+  const checkinAppointment = useCallback((id: string): Ticket | null => {
+    const appt = appointments.find(a => a.id === id);
+    if (!appt || appt.status !== 'agendado') return null;
+
+    // Mark appointment as checked in
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'checked_in' as const } : a));
+
+    // Create ticket with 'agendado' priority
+    const ticket = createTicket('agendado', appt.specialtyId, appt.id, appt.patientName, appt.patientCpf, appt.patientPhone);
+    return ticket;
+  }, [appointments, createTicket]);
+
+  const rescheduleAppointment = useCallback((id: string, newDate: string, newTime: string) => {
+    setAppointments(prev => {
+      const appt = prev.find(a => a.id === id);
+      if (!appt) return prev;
+      // Check conflict
+      const conflict = prev.some(a => a.id !== id && a.doctorId === appt.doctorId && a.date === newDate && a.time === newTime && a.status !== 'cancelado');
+      if (conflict) return prev;
+      return prev.map(a => a.id === id ? { ...a, date: newDate, time: newTime } : a);
+    });
   }, []);
 
   const getAppointmentsForDoctor = useCallback((doctorId: string, date: string) => {
-    return appointments.filter(a => a.doctorId === doctorId && a.date === date);
+    return appointments.filter(a => a.doctorId === doctorId && a.date === date && a.status !== 'cancelado');
   }, [appointments]);
 
   const getAppointmentsForDate = useCallback((date: string) => {
-    return appointments.filter(a => a.date === date);
+    return appointments.filter(a => a.date === date && a.status !== 'cancelado');
   }, [appointments]);
 
   return (
     <ClinicContext.Provider value={{
       tickets, specialties: SPECIALTIES, doctors, doctorTypes, offices, records, prescriptions,
       appointments, queueRules, users,
-      createTicket, callNextReception, registerPatientAndForward, callNextDoctor,
+      createTicket: (priority: Priority, specialtyId: string) => createTicket(priority, specialtyId),
+      callNextReception, registerPatientAndForward, callNextDoctor,
       completeAttendance, addRecord, addPrescription, getReceptionQueue, getDoctorQueue,
       updateQueueRules, addUser, updateUser, toggleUserActive,
       addDoctorType, updateDoctorType, deleteDoctorType,
       addOffice, addOfficesBulk, updateOffice, toggleOfficeActive,
       addDoctor, updateDoctor, deleteDoctor,
-      addAppointment, cancelAppointment, getAppointmentsForDoctor, getAppointmentsForDate,
+      addAppointment, cancelAppointment, checkinAppointment, rescheduleAppointment,
+      getAppointmentsForDoctor, getAppointmentsForDate,
     }}>
       {children}
     </ClinicContext.Provider>

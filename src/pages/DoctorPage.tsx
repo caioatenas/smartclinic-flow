@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useClinic } from '@/lib/clinic-context';
-import { ArrowLeft, Activity, FileText, Printer, Clock, DoorOpen } from 'lucide-react';
+import { ArrowLeft, Activity, FileText, Printer, Clock, DoorOpen, Stethoscope } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,17 +15,20 @@ const DoctorPage = () => {
   const { doctors, specialties, tickets, offices, getDoctorQueue, callNextDoctor, completeAttendance, addRecord, addPrescription } = useClinic();
   const [, setTick] = useState(0);
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(doctorId || '');
 
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const doctor = doctors.find(d => d.id === doctorId);
+  // If accessed via /doctor (no id), show doctor selection
+  const activeDoctorId = doctorId || selectedDoctorId;
+  const doctor = doctors.find(d => d.id === activeDoctorId);
   const specialty = specialties.find(s => s.id === doctor?.specialtyId);
-  const queue = doctorId ? getDoctorQueue(doctorId) : [];
-  const currentPatient = tickets.find(t => t.doctorId === doctorId && t.status === 'em_atendimento_medico');
-  const finishedToday = tickets.filter(t => t.doctorId === doctorId && t.status === 'finalizado');
+  const queue = activeDoctorId ? getDoctorQueue(activeDoctorId) : [];
+  const currentPatient = tickets.find(t => t.doctorId === activeDoctorId && t.status === 'em_atendimento_medico');
+  const finishedToday = tickets.filter(t => t.doctorId === activeDoctorId && t.status === 'finalizado');
   const activeOffices = offices.filter(o => o.active);
   const selectedOffice = offices.find(o => o.id === selectedOfficeId);
 
@@ -39,8 +42,8 @@ const DoctorPage = () => {
   const [printData, setPrintData] = useState<any>(null);
 
   const handleCallNext = () => {
-    if (doctorId && selectedOfficeId && selectedOffice) {
-      callNextDoctor(doctorId, selectedOfficeId, selectedOffice.name);
+    if (activeDoctorId && selectedOfficeId && selectedOffice) {
+      callNextDoctor(activeDoctorId, selectedOfficeId, selectedOffice.name);
     }
   };
 
@@ -75,14 +78,72 @@ const DoctorPage = () => {
     setPrescNotes('');
   };
 
-  if (!doctor) return <div className="p-8">Médico não encontrado</div>;
+  // Doctor selection screen (when no doctorId param or doctor not found)
+  if (!doctor) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="flex items-center gap-4 mb-8">
+          <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <Activity className="w-6 h-6 text-accent" />
+          <h1 className="text-2xl font-bold text-foreground">Área do Médico</h1>
+        </div>
+
+        {doctors.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <Stethoscope className="w-16 h-16 text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">Nenhum médico cadastrado</h2>
+            <p className="text-muted-foreground text-center max-w-md">
+              Cadastre médicos no painel do administrador para começar a atender pacientes.
+            </p>
+            <Button variant="outline" onClick={() => navigate('/admin')} className="mt-4">
+              Ir para Administração
+            </Button>
+          </div>
+        ) : (
+          <div className="max-w-2xl mx-auto">
+            <p className="text-muted-foreground mb-6 text-center">Selecione seu perfil para iniciar o atendimento</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {doctors.map(d => {
+                const spec = specialties.find(s => s.id === d.specialtyId);
+                const qCount = getDoctorQueue(d.id).length;
+                return (
+                  <button
+                    key={d.id}
+                    onClick={() => {
+                      setSelectedDoctorId(d.id);
+                      navigate(`/doctor/${d.id}`);
+                    }}
+                    className="p-6 rounded-xl bg-card border border-border hover:border-accent transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center text-accent font-bold text-lg">
+                        {d.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-foreground">{d.name}</div>
+                        <div className="text-sm text-muted-foreground">{spec?.icon} {spec?.name}</div>
+                      </div>
+                    </div>
+                    {d.crm && <div className="text-xs text-muted-foreground mt-1">CRM: {d.crm}</div>}
+                    <div className="text-xs text-accent mt-2">{qCount} paciente(s) na fila</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Office selection gate
   if (!selectedOfficeId) {
     return (
       <div className="min-h-screen bg-background p-6 flex items-center justify-center">
-        <div className="panel-card bg-card border border-border max-w-md w-full text-center">
-          <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-muted-foreground hover:text-foreground">
+        <div className="panel-card bg-card border border-border max-w-md w-full text-center relative">
+          <button onClick={() => navigate('/doctor')} className="absolute top-6 left-6 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-6 h-6" />
           </button>
           <DoorOpen className="w-12 h-12 text-accent mx-auto mb-4" />
@@ -126,7 +187,7 @@ const DoctorPage = () => {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="flex items-center gap-4 mb-8">
-        <button onClick={() => navigate('/')} className="text-muted-foreground hover:text-foreground">
+        <button onClick={() => navigate('/doctor')} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-6 h-6" />
         </button>
         <Activity className="w-6 h-6 text-accent" />
@@ -197,7 +258,7 @@ const DoctorPage = () => {
           <div className="space-y-2">
             {queue.map(t => (
               <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                <span className={`font-bold ${t.priority === 'priority' ? 'text-warning' : 'text-primary'}`}>{t.code}</span>
+                <span className={`font-bold ${t.priority === 'priority' ? 'text-warning' : t.priority === 'agendado' ? 'text-info' : 'text-primary'}`}>{t.code}</span>
                 <div className="flex-1">
                   <span className="text-sm text-foreground">{t.patientName}</span>
                   <div className="text-xs text-muted-foreground flex items-center gap-1">
@@ -205,6 +266,7 @@ const DoctorPage = () => {
                   </div>
                 </div>
                 {t.priority === 'priority' && <span className="text-xs bg-warning/20 text-warning px-2 py-0.5 rounded-full ml-auto">P</span>}
+                {t.priority === 'agendado' && <span className="text-xs bg-info/20 text-info px-2 py-0.5 rounded-full ml-auto">A</span>}
               </div>
             ))}
             {queue.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhum paciente aguardando</p>}

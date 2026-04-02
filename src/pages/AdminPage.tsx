@@ -24,9 +24,8 @@ const ROLE_LABELS: Record<UserRole, string> = {
 const AdminPage = () => {
   const navigate = useNavigate();
   const {
-    doctors, specialties, tickets, queueRules, users, doctorTypes, offices,
+    doctors, specialties, tickets, queueRules, users, offices,
     updateQueueRules, addUser, updateUser, toggleUserActive,
-    addDoctorType, updateDoctorType, deleteDoctorType,
     addOffice, addOfficesBulk, updateOffice, toggleOfficeActive,
     addDoctor, updateDoctor, deleteDoctor,
   } = useClinic();
@@ -49,11 +48,6 @@ const AdminPage = () => {
   const [userRole, setUserRole] = useState<UserRole>('receptionist');
   const [userDoctorId, setUserDoctorId] = useState('');
 
-  // Doctor type form
-  const [newTypeName, setNewTypeName] = useState('');
-  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
-  const [editingTypeName, setEditingTypeName] = useState('');
-
   // Office form
   const [newOfficeName, setNewOfficeName] = useState('');
   const [bulkCount, setBulkCount] = useState('');
@@ -65,8 +59,7 @@ const AdminPage = () => {
   const [editingDoctorId, setEditingDoctorId] = useState<string | null>(null);
   const [doctorName, setDoctorName] = useState('');
   const [doctorSpecialtyId, setDoctorSpecialtyId] = useState('');
-  const [doctorRoom, setDoctorRoom] = useState('');
-  const [doctorTypeId, setDoctorTypeId] = useState('');
+  const [doctorCrm, setDoctorCrm] = useState('');
 
   const handleSaveRules = () => {
     const n = Math.max(1, parseInt(normalCount) || 1);
@@ -116,19 +109,6 @@ const AdminPage = () => {
     setShowUserForm(false);
   };
 
-  const handleAddType = () => {
-    if (!newTypeName.trim()) return;
-    addDoctorType(newTypeName.trim());
-    setNewTypeName('');
-  };
-
-  const handleSaveType = () => {
-    if (!editingTypeId || !editingTypeName.trim()) return;
-    updateDoctorType(editingTypeId, editingTypeName.trim());
-    setEditingTypeId(null);
-    setEditingTypeName('');
-  };
-
   const handleAddOffice = () => {
     if (!newOfficeName.trim()) return;
     addOffice(newOfficeName.trim());
@@ -153,8 +133,7 @@ const AdminPage = () => {
     setEditingDoctorId(null);
     setDoctorName('');
     setDoctorSpecialtyId('');
-    setDoctorRoom('');
-    setDoctorTypeId('');
+    setDoctorCrm('');
     setShowDoctorForm(true);
   };
 
@@ -162,17 +141,16 @@ const AdminPage = () => {
     setEditingDoctorId(d.id);
     setDoctorName(d.name);
     setDoctorSpecialtyId(d.specialtyId);
-    setDoctorRoom(d.room);
-    setDoctorTypeId(d.doctorTypeId || '');
+    setDoctorCrm(d.crm || '');
     setShowDoctorForm(true);
   };
 
   const handleSaveDoctor = () => {
-    if (!doctorName || !doctorSpecialtyId || !doctorRoom || !doctorTypeId) return;
+    if (!doctorName || !doctorSpecialtyId) return;
     if (editingDoctorId) {
-      updateDoctor(editingDoctorId, { name: doctorName, specialtyId: doctorSpecialtyId, room: doctorRoom, doctorTypeId: doctorTypeId });
+      updateDoctor(editingDoctorId, { name: doctorName, specialtyId: doctorSpecialtyId, crm: doctorCrm });
     } else {
-      addDoctor({ name: doctorName, specialtyId: doctorSpecialtyId, room: doctorRoom, doctorTypeId: doctorTypeId });
+      addDoctor({ name: doctorName, specialtyId: doctorSpecialtyId, crm: doctorCrm });
     }
     setShowDoctorForm(false);
   };
@@ -209,10 +187,9 @@ const AdminPage = () => {
       </div>
 
       <Tabs defaultValue="rules" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="rules" className="gap-1 text-xs"><Sliders className="w-4 h-4" /> Fila</TabsTrigger>
           <TabsTrigger value="offices" className="gap-1 text-xs"><DoorOpen className="w-4 h-4" /> Consultórios</TabsTrigger>
-          <TabsTrigger value="doctorTypes" className="gap-1 text-xs"><Stethoscope className="w-4 h-4" /> Tipos</TabsTrigger>
           <TabsTrigger value="doctors" className="gap-1 text-xs"><UserCheck className="w-4 h-4" /> Médicos</TabsTrigger>
           <TabsTrigger value="users" className="gap-1 text-xs"><Shield className="w-4 h-4" /> Usuários</TabsTrigger>
           <TabsTrigger value="metrics" className="gap-1 text-xs"><BarChart3 className="w-4 h-4" /> Métricas</TabsTrigger>
@@ -229,6 +206,9 @@ const AdminPage = () => {
               <p className="text-sm text-foreground font-medium">📌 Regra ativa:</p>
               <p className="text-lg text-accent font-bold mt-1">
                 {queueRules.normalBeforePriority} normal(is) → {queueRules.priorityCount} prioritário(s)
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Ordem de prioridade: Prioritário → Agendado → Normal
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -302,49 +282,6 @@ const AdminPage = () => {
           </div>
         </TabsContent>
 
-        {/* ===== DOCTOR TYPES TAB ===== */}
-        <TabsContent value="doctorTypes">
-          <div className="panel-card bg-card border border-border">
-            <h2 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
-              <Stethoscope className="w-5 h-5 text-accent" /> Tipos de Médico
-            </h2>
-            <div className="flex gap-2 mb-6">
-              <Input placeholder="Nome do novo tipo (ex: Cardiologista)" value={newTypeName} onChange={e => setNewTypeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddType()} />
-              <Button onClick={handleAddType} className="bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!newTypeName.trim()}>
-                <Plus className="w-4 h-4" /> Adicionar
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {doctorTypes.map(dt => {
-                const isEditing = editingTypeId === dt.id;
-                const doctorsOfType = doctors.filter(d => d.doctorTypeId === dt.id);
-                return (
-                  <div key={dt.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                    {isEditing ? (
-                      <>
-                        <Input value={editingTypeName} onChange={e => setEditingTypeName(e.target.value)} className="flex-1" onKeyDown={e => e.key === 'Enter' && handleSaveType()} />
-                        <Button size="sm" onClick={handleSaveType} className="bg-accent text-accent-foreground gap-1"><Save className="w-3 h-3" /> Salvar</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingTypeId(null)}><X className="w-3 h-3" /></Button>
-                      </>
-                    ) : (
-                      <>
-                        <Stethoscope className="w-5 h-5 text-primary" />
-                        <div className="flex-1">
-                          <div className="font-medium text-foreground">{dt.name}</div>
-                          <div className="text-xs text-muted-foreground">{doctorsOfType.length} médico(s) vinculado(s)</div>
-                        </div>
-                        <Button size="sm" variant="ghost" onClick={() => { setEditingTypeId(dt.id); setEditingTypeName(dt.name); }}><Pencil className="w-4 h-4" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => deleteDoctorType(dt.id)} className="text-destructive hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-              {doctorTypes.length === 0 && <p className="text-muted-foreground text-center py-6">Nenhum tipo cadastrado</p>}
-            </div>
-          </div>
-        </TabsContent>
-
         {/* ===== DOCTORS TAB ===== */}
         <TabsContent value="doctors">
           <div className="panel-card bg-card border border-border">
@@ -356,15 +293,9 @@ const AdminPage = () => {
                 <UserPlus className="w-4 h-4" /> Novo Médico
               </Button>
             </div>
-            {doctorTypes.length === 0 && (
-              <div className="bg-warning/10 border border-warning/20 rounded-lg p-3 mb-4 text-sm text-warning">
-                ⚠️ Cadastre ao menos um "Tipo de Médico" antes de criar médicos.
-              </div>
-            )}
             <div className="space-y-3">
               {doctors.map(d => {
                 const spec = specialties.find(s => s.id === d.specialtyId);
-                const dtype = doctorTypes.find(dt => dt.id === d.doctorTypeId);
                 const queueCount = tickets.filter(t => t.doctorId === d.id && t.status === 'aguardando_medico').length;
                 return (
                   <div key={d.id} className="flex items-center gap-4 p-4 rounded-lg bg-muted/30 border border-border">
@@ -374,8 +305,8 @@ const AdminPage = () => {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-foreground truncate">{d.name}</div>
                       <div className="text-sm text-muted-foreground">
-                        {spec?.name} • {d.room}
-                        {dtype && <span className="ml-1 text-xs text-accent">• {dtype.name}</span>}
+                        {spec?.icon} {spec?.name}
+                        {d.crm && <span className="ml-2 text-xs">CRM: {d.crm}</span>}
                       </div>
                     </div>
                     <span className="text-sm bg-accent/10 text-accent px-2 py-1 rounded-full">{queueCount} na fila</span>
@@ -472,7 +403,6 @@ const AdminPage = () => {
               <div className="space-y-3">
                 {doctors.map(d => {
                   const spec = specialties.find(s => s.id === d.specialtyId);
-                  const dtype = doctorTypes.find(dt => dt.id === d.doctorTypeId);
                   const queueCount = tickets.filter(t => t.doctorId === d.id && t.status === 'aguardando_medico').length;
                   const doneCount = tickets.filter(t => t.doctorId === d.id && t.status === 'finalizado').length;
                   return (
@@ -481,8 +411,8 @@ const AdminPage = () => {
                       <div className="flex-1">
                         <div className="font-medium text-foreground">{d.name}</div>
                         <div className="text-sm text-muted-foreground">
-                          {spec?.name} • {d.room}
-                          {dtype && <span className="ml-1 text-xs text-accent">• {dtype.name}</span>}
+                          {spec?.icon} {spec?.name}
+                          {d.crm && <span className="ml-2 text-xs">CRM: {d.crm}</span>}
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-1">
@@ -553,9 +483,12 @@ const AdminPage = () => {
                 <Select value={userDoctorId} onValueChange={setUserDoctorId}>
                   <SelectTrigger><SelectValue placeholder="Selecione o médico" /></SelectTrigger>
                   <SelectContent>
-                    {doctors.map(d => (
-                      <SelectItem key={d.id} value={d.id}>{d.name} - {d.room}</SelectItem>
-                    ))}
+                    {doctors.map(d => {
+                      const spec = specialties.find(s => s.id === d.specialtyId);
+                      return (
+                        <SelectItem key={d.id} value={d.id}>{d.name} - {spec?.name}</SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -584,18 +517,6 @@ const AdminPage = () => {
               <Input placeholder="Dr(a). Nome" value={doctorName} onChange={e => setDoctorName(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground block mb-1">Tipo de Médico *</label>
-              <Select value={doctorTypeId} onValueChange={setDoctorTypeId}>
-                <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
-                <SelectContent>
-                  {doctorTypes.map(dt => (
-                    <SelectItem key={dt.id} value={dt.id}>{dt.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {doctorTypes.length === 0 && <p className="text-xs text-warning mt-1">Cadastre tipos de médico primeiro</p>}
-            </div>
-            <div>
               <label className="text-sm font-medium text-foreground block mb-1">Especialidade *</label>
               <Select value={doctorSpecialtyId} onValueChange={setDoctorSpecialtyId}>
                 <SelectTrigger><SelectValue placeholder="Selecione a especialidade" /></SelectTrigger>
@@ -607,11 +528,11 @@ const AdminPage = () => {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-foreground block mb-1">Sala *</label>
-              <Input placeholder="Ex: Sala 01" value={doctorRoom} onChange={e => setDoctorRoom(e.target.value)} />
+              <label className="text-sm font-medium text-foreground block mb-1">CRM</label>
+              <Input placeholder="Ex: 12345/SP" value={doctorCrm} onChange={e => setDoctorCrm(e.target.value)} />
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleSaveDoctor} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!doctorName || !doctorSpecialtyId || !doctorRoom || !doctorTypeId}>
+              <Button onClick={handleSaveDoctor} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!doctorName || !doctorSpecialtyId}>
                 <Save className="w-4 h-4" /> {editingDoctorId ? 'Salvar' : 'Criar Médico'}
               </Button>
               <Button variant="outline" onClick={() => setShowDoctorForm(false)} className="gap-2">
