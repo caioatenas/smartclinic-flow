@@ -73,7 +73,7 @@ const AssistantPage = () => {
 
   const getSpecialty = (id: string) => specialties.find(s => s.id === id);
   const getDoctor = (id?: string) => doctors.find(d => d.id === id);
-  const getDoctorType = (typeId?: string) => doctorTypes.find(dt => dt.id === typeId);
+  
 
   const sorted = [...tickets].sort((a, b) => {
     const order: Record<string, number> = { em_atendimento_medico: 0, em_atendimento_recepcao: 1, aguardando_medico: 2, aguardando_recepcao: 3, finalizado: 4 };
