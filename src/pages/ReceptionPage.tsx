@@ -11,6 +11,9 @@ import { format } from 'date-fns';
 
 import { cn } from '@/lib/utils';
 import AppointmentDialog from '@/components/AppointmentDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { formatCpf, isCompleteCpf, onlyDigits, sameCpf } from '@/lib/cpf';
+import { Search } from 'lucide-react';
 
 const TIME_SLOTS = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
@@ -32,6 +35,8 @@ const ReceptionPage = () => {
   const [phone, setPhone] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
   const [, setTick] = useState(0);
+  const [cpfFound, setCpfFound] = useState<'idle' | 'found' | 'new'>('idle');
+  const [quick, setQuick] = useState('');
 
   // Reschedule state
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
@@ -56,6 +61,35 @@ const ReceptionPage = () => {
     .filter(a => a.date === todayStr && a.status === 'agendado')
     .sort((a, b) => a.time.localeCompare(b.time));
 
+  // Busca rápida: preenche nome/telefone a partir de atendimentos ou agendamentos anteriores
+  useEffect(() => {
+    if (!selectedTicket || !isCompleteCpf(cpf)) { setCpfFound('idle'); return; }
+    const digits = onlyDigits(cpf);
+    const variants = [digits, formatCpf(digits)];
+    let cancelled = false;
+    (async () => {
+      const [t, a] = await Promise.all([
+        supabase.from('tickets').select('patient_name, patient_phone, created_at').in('patient_cpf', variants).not('patient_name', 'is', null).order('created_at', { ascending: false }).limit(1),
+        supabase.from('appointments').select('patient_name, patient_phone, created_at').in('patient_cpf', variants).order('created_at', { ascending: false }).limit(1),
+      ]);
+      if (cancelled) return;
+      const rows = [...(t.data || []), ...(a.data || [])].sort((x, y) => y.created_at.localeCompare(x.created_at));
+      const hit = rows[0];
+      if (hit) {
+        setName(n => n || hit.patient_name || '');
+        setPhone(p => p || hit.patient_phone || '');
+        setCpfFound('found');
+      } else setCpfFound('new');
+    })();
+    return () => { cancelled = true; };
+  }, [cpf, selectedTicket]);
+
+  const q = quick.trim().toLowerCase();
+  const quickMatches = q.length >= 3
+    ? todayAppointments.filter(a => (onlyDigits(q).length >= 3 && onlyDigits(a.patientCpf || '').includes(onlyDigits(q))) || a.patientName.toLowerCase().includes(q))
+    : [];
+  const quickCheckin = (id: string) => { checkinAppointment(id); setQuick(''); };
+
   const handleCallNext = async () => {
     const called = await callNextReception();
     if (called) {
@@ -68,11 +102,12 @@ const ReceptionPage = () => {
 
   const handleRegister = () => {
     if (!selectedTicket || !name) return;
-    registerPatientAndForward(selectedTicket, name, cpf || undefined, phone || undefined);
+    registerPatientAndForward(selectedTicket, name, cpf ? formatCpf(cpf) : undefined, phone || undefined);
     setSelectedTicket(null);
     setName('');
     setCpf('');
     setPhone('');
+    setCpfFound('idle');
   };
 
   const handleCheckin = (appointmentId: string) => {
@@ -117,6 +152,41 @@ const ReceptionPage = () => {
           Regra ativa: <strong className="text-accent">{queueRules.normalBeforePriority} normal(is) → {queueRules.priorityCount} prioritário(s)</strong>
           <span className="text-muted-foreground ml-2">(Prioridade: P → A → N)</span>
         </span>
+      </div>
+
+      {/* Check-in rápido */}
+      <div className="panel-card bg-card border border-border mb-6">
+        <div className="flex items-center gap-2">
+          <Search className="w-5 h-5 text-primary shrink-0" />
+          <Input
+            autoFocus
+            placeholder="Check-in rápido: digite CPF ou nome do paciente agendado hoje e pressione Enter"
+            value={quick}
+            onChange={e => setQuick(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && quickMatches.length === 1) quickCheckin(quickMatches[0].id); }}
+            className="h-12 text-base"
+          />
+        </div>
+        {q.length >= 3 && (
+          <div className="mt-3 space-y-2">
+            {quickMatches.map(a => (
+              <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                <span className="font-bold text-primary">{a.time}</span>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-foreground">{a.patientName}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {a.patientCpf || 'sem CPF'} • {doctors.find(d => d.id === a.doctorId)?.name} • {specialties.find(s => s.id === a.specialtyId)?.name}
+                  </div>
+                </div>
+                <Button size="sm" onClick={() => quickCheckin(a.id)} className="bg-success text-success-foreground hover:bg-success/90 gap-1">
+                  <CheckCircle className="w-4 h-4" /> Check-in
+                </Button>
+              </div>
+            ))}
+            {quickMatches.length === 0 && <p className="text-sm text-muted-foreground">Nenhum agendamento de hoje encontrado.</p>}
+            {quickMatches.length > 1 && <p className="text-xs text-muted-foreground">Vários resultados — clique no paciente certo.</p>}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -239,13 +309,17 @@ const ReceptionPage = () => {
             {getSpecialty(tickets.find(t => t.id === selectedTicket)?.specialtyId || '')?.name}
           </p>
           <div className="space-y-4 mt-2">
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Nome completo *" value={name} onChange={e => setName(e.target.value)} />
+            <div>
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-muted-foreground" />
+                <Input autoFocus inputMode="numeric" placeholder="CPF — digite para buscar paciente" value={cpf} onChange={e => setCpf(formatCpf(e.target.value))} />
+              </div>
+              {cpfFound === 'found' && <p className="text-xs text-success mt-1 ml-6">✓ Paciente encontrado — dados preenchidos</p>}
+              {cpfFound === 'new' && <p className="text-xs text-muted-foreground mt-1 ml-6">Novo paciente — preencha os dados</p>}
             </div>
             <div className="flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-muted-foreground" />
-              <Input placeholder="CPF (opcional)" value={cpf} onChange={e => setCpf(e.target.value)} />
+              <User className="w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Nome completo *" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && name) handleRegister(); }} />
             </div>
             <div className="flex items-center gap-2">
               <Phone className="w-4 h-4 text-muted-foreground" />
