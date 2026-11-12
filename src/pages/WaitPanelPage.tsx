@@ -1,12 +1,14 @@
 import { useClinic } from '@/lib/clinic-context';
-import { Activity, ArrowLeft, DoorOpen } from 'lucide-react';
+import { Activity, ArrowLeft, DoorOpen, Volume2, VolumeX, RotateCcw } from 'lucide-react';
+import { useCallAnnouncer } from '@/hooks/use-call-announcer';
+import type { Ticket } from '@/lib/clinic-types';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { formatDuration, tempoEsperaAtual } from '@/lib/time-utils';
 
 const WaitPanelPage = () => {
   const navigate = useNavigate();
-  const { tickets, specialties, doctors } = useClinic();
+  const { tickets, specialties, doctors, connected } = useClinic();
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -36,12 +38,36 @@ const WaitPanelPage = () => {
   const allCalled = [...calledReception, ...calledDoctor];
   const getSpecialty = (id: string) => specialties.find(s => s.id === id);
   const getDoctor = (id?: string) => doctors.find(d => d.id === id);
+  const placeOf = (t: Ticket) =>
+    t.status === 'em_atendimento_recepcao' ? 'a recepção' : (t.officeName || t.room || 'o consultório');
+  const { enabled, enable, current, replay } = useCallAnnouncer(allCalled, placeOf, connected);
 
   return (
     <div className="min-h-screen bg-panel text-panel-foreground p-8">
       <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-panel-foreground/60 hover:text-panel-foreground transition-colors">
         <ArrowLeft className="w-8 h-8" />
       </button>
+
+      <button
+        onClick={enable}
+        className={`absolute top-6 right-6 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${enabled ? 'bg-panel-highlight/20 text-panel-highlight' : 'bg-warning text-panel animate-pulse'}`}
+      >
+        {enabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+        {enabled ? 'Som ativado' : 'Toque para ativar o som'}
+      </button>
+
+      {current && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-panel/95 animate-slide-in">
+          <div className="text-center border-4 border-panel-highlight rounded-3xl px-16 py-12 shadow-2xl animate-pulse">
+            <div className="text-2xl uppercase tracking-widest text-panel-foreground/70 mb-4">🔔 Senha chamada</div>
+            <div className="text-[10rem] leading-none font-black text-panel-highlight">{current.ticket.code}</div>
+            {current.ticket.patientName && <div className="text-5xl font-semibold mt-6">{current.ticket.patientName}</div>}
+            <div className="flex items-center justify-center gap-3 text-4xl mt-8 text-panel-highlight font-bold">
+              <DoorOpen className="w-10 h-10" /> {current.place.replace(/^(a|o) /, '')}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-center gap-3 mb-8">
         <Activity className="w-10 h-10 text-panel-highlight" />
@@ -54,7 +80,10 @@ const WaitPanelPage = () => {
           <h2 className="text-xl font-semibold text-panel-highlight mb-4 text-center">🔔 Chamando Agora</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
             {allCalled.map(t => (
-              <div key={t.id} className="bg-panel-highlight/20 border-2 border-panel-highlight rounded-2xl p-8 text-center animate-slide-in">
+              <div key={t.id} className="relative bg-panel-highlight/20 border-2 border-panel-highlight rounded-2xl p-8 text-center animate-slide-in">
+                <button onClick={() => replay(t)} title="Chamar novamente" className="absolute top-3 right-3 text-panel-foreground/40 hover:text-panel-highlight">
+                  <RotateCcw className="w-5 h-5" />
+                </button>
                 <div className="text-6xl font-black text-panel-highlight mb-2">{t.code}</div>
                 <div className="text-2xl font-semibold">{t.patientName || '---'}</div>
                 <div className="text-panel-foreground/70 mt-2">
