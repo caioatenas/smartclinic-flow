@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import PatientHistory from '@/components/PatientHistory';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDuration, tempoEsperaAtual, tempoAteRecepcao, tempoNaRecepcao, tempoEsperaMedico } from '@/lib/time-utils';
 
@@ -244,6 +245,7 @@ const DoctorPage = () => {
                   Finalizar Atendimento
                 </Button>
               </div>
+              <PatientHistory ticketId={currentPatient.id} cpf={currentPatient.patientCpf} name={currentPatient.patientName} />
             </div>
           ) : (
             <div className="panel-card bg-card border border-border text-center py-16">
