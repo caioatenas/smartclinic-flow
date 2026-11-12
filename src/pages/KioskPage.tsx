@@ -18,8 +18,9 @@ const KioskPage = () => {
     setStep('specialty');
   };
 
-  const handleSpecialty = (specialtyId: string) => {
-    const ticket = createTicket(priority, specialtyId);
+  const handleSpecialty = async (specialtyId: string) => {
+    const ticket = await createTicket(priority, specialtyId);
+    if (!ticket) return;
     setGeneratedCode(ticket.code);
     setStep('done');
   };

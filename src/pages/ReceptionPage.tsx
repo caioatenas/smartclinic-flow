@@ -56,8 +56,8 @@ const ReceptionPage = () => {
     .filter(a => a.date === todayStr && a.status === 'agendado')
     .sort((a, b) => a.time.localeCompare(b.time));
 
-  const handleCallNext = () => {
-    const called = callNextReception();
+  const handleCallNext = async () => {
+    const called = await callNextReception();
     if (called) {
       setSelectedTicket(called.id);
       setName(called.patientName || '');
