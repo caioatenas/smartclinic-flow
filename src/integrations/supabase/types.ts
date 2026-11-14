@@ -173,6 +173,92 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          active: boolean
+          doctor_id: string | null
+          email: string
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          doctor_id?: string | null
+          email?: string
+          id: string
+          name?: string
+        }
+        Update: {
+          active?: boolean
+          doctor_id?: string | null
+          email?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      queue_display: {
+        Row: {
+          called_at: string | null
+          code: string
+          created_at: string
+          doctor_id: string | null
+          hora_chamada_medico: string | null
+          hora_chamada_recepcao: string | null
+          hora_chegada: string
+          hora_fim_atendimento: string | null
+          hora_fim_recepcao: string | null
+          id: string
+          office_name: string | null
+          patient_name: string | null
+          priority: string
+          specialty_id: string
+          status: string
+        }
+        Insert: {
+          called_at?: string | null
+          code: string
+          created_at: string
+          doctor_id?: string | null
+          hora_chamada_medico?: string | null
+          hora_chamada_recepcao?: string | null
+          hora_chegada: string
+          hora_fim_atendimento?: string | null
+          hora_fim_recepcao?: string | null
+          id: string
+          office_name?: string | null
+          patient_name?: string | null
+          priority: string
+          specialty_id: string
+          status: string
+        }
+        Update: {
+          called_at?: string | null
+          code?: string
+          created_at?: string
+          doctor_id?: string | null
+          hora_chamada_medico?: string | null
+          hora_chamada_recepcao?: string | null
+          hora_chegada?: string
+          hora_fim_atendimento?: string | null
+          hora_fim_recepcao?: string | null
+          id?: string
+          office_name?: string | null
+          patient_name?: string | null
+          priority?: string
+          specialty_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
       queue_rules: {
         Row: {
           id: number
@@ -190,6 +276,41 @@ export type Database = {
           priority_count?: number
         }
         Relationships: []
+      }
+      staff_invitations: {
+        Row: {
+          active: boolean
+          doctor_id: string | null
+          email: string
+          id: string
+          name: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          active?: boolean
+          doctor_id?: string | null
+          email: string
+          id?: string
+          name: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          active?: boolean
+          doctor_id?: string | null
+          email?: string
+          id?: string
+          name?: string
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_invitations_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_users: {
         Row: {
@@ -317,6 +438,24 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -388,10 +527,67 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_clinic_staff: { Args: never; Returns: boolean }
+      kiosk_ticket: {
+        Args: { p_priority: string; p_specialty: string }
+        Returns: {
+          called_at: string | null
+          code: string
+          created_at: string
+          doctor_id: string | null
+          hora_chamada_medico: string | null
+          hora_chamada_recepcao: string | null
+          hora_chegada: string
+          hora_fim_atendimento: string | null
+          hora_fim_recepcao: string | null
+          id: string
+          office_name: string | null
+          patient_name: string | null
+          priority: string
+          specialty_id: string
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "queue_display"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      list_clinic_users: {
+        Args: never
+        Returns: {
+          active: boolean
+          doctor_id: string
+          email: string
+          id: string
+          name: string
+          role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
+      manage_clinic_user: {
+        Args: {
+          p_active: boolean
+          p_doctor_id?: string
+          p_email: string
+          p_id: string
+          p_name: string
+          p_role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: undefined
+      }
       next_ticket_code: { Args: { p_priority: string }; Returns: string }
+      own_doctor: { Args: never; Returns: string }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "doctor" | "receptionist" | "assistant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -518,6 +714,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "doctor", "receptionist", "assistant"],
+    },
   },
 } as const

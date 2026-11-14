@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './auth-context';
+import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
 import {
   Ticket, Specialty, Doctor, DoctorType, Office, Priority, MedicalRecord,
@@ -98,7 +100,7 @@ function toUser(r: any): SystemUser {
     id: r.id,
     name: r.name,
     email: r.email,
-    password: r.password ?? '',
+    password: '',
     role: r.role,
     active: !!r.active,
     doctorId: r.doctor_id ?? undefined,
@@ -159,8 +161,8 @@ interface ClinicContextType {
   getReceptionQueue: () => Ticket[];
   getDoctorQueue: (doctorId: string) => Ticket[];
   updateQueueRules: (rules: QueueRules) => void;
-  addUser: (user: Omit<SystemUser, 'id'>) => void;
-  updateUser: (id: string, data: Partial<SystemUser>) => void;
+  addUser: (user: Omit<SystemUser, 'id'>) => Promise<boolean>;
+  updateUser: (id: string, data: Partial<SystemUser>) => Promise<boolean>;
   toggleUserActive: (id: string) => void;
   addDoctorType: (name: string) => void;
   updateDoctorType: (id: string, name: string) => void;
@@ -196,6 +198,7 @@ const sortByPriority = (list: Ticket[]) => {
 };
 
 export function ClinicProvider({ children }: { children: React.ReactNode }) {
+  const { role, user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -210,17 +213,20 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   // Load everything once, then keep every screen in sync through realtime.
   useEffect(() => {
     let active = true;
+    setTickets([]); setRecords([]); setPrescriptions([]); setAppointments([]); setUsers([]); setConnected(false);
+    const clinical = role === 'admin' || role === 'doctor';
+    const empty = Promise.resolve({ data: [], error: null });
 
     async function load() {
       const [t, r, p, a, d, dt, o, u, q] = await Promise.all([
-        supabase.from('tickets').select('*'),
-        supabase.from('medical_records').select('*'),
-        supabase.from('prescriptions').select('*'),
-        supabase.from('appointments').select('*'),
+        role ? supabase.from('tickets').select('*') : supabase.from('queue_display').select('*'),
+        clinical ? supabase.from('medical_records').select('*') : empty,
+        clinical ? supabase.from('prescriptions').select('*') : empty,
+        role ? supabase.from('appointments').select('*') : empty,
         supabase.from('doctors').select('*'),
         supabase.from('doctor_types').select('*'),
         supabase.from('offices').select('*'),
-        supabase.from('system_users').select('*'),
+        role === 'admin' ? supabase.rpc('list_clinic_users') : empty,
         supabase.from('queue_rules').select('*').eq('id', 1).maybeSingle(),
       ]);
       if (!active) return;
@@ -240,12 +246,12 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
 
     const channel = supabase
       .channel(`clinic-sync-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, liveRows(setTickets, toTicket))
+      .on('postgres_changes', { event: '*', schema: 'public', table: role ? 'tickets' : 'queue_display' }, liveRows(setTickets, toTicket))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, liveRows(setAppointments, toAppointment))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'doctors' }, liveRows(setDoctors, toDoctor))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'offices' }, liveRows(setOffices, toOffice))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'doctor_types' }, liveRows(setDoctorTypes, toDoctorType))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_users' }, liveRows(setUsers, toUser))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_invitations' }, () => { if (role === 'admin') void supabase.rpc('list_clinic_users').then(({ data }) => { if (active) setUsers((data ?? []).map(toUser)); }); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, liveRows(setPrescriptions, toPrescription))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records' }, (payload: any) => {
         if (payload.eventType === 'DELETE') {
@@ -271,7 +277,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [role, user?.id]);
 
   // ---------- Queue / tickets ----------
 
@@ -283,6 +289,11 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     patientCpf?: string,
     patientPhone?: string,
   ): Promise<Ticket | null> => {
+    if (!appointmentId) {
+      const { data, error } = await supabase.rpc('kiosk_ticket', { p_priority: priority, p_specialty: specialtyId });
+      if (error || !data?.[0]) { toast.error('Não foi possível gerar a senha.'); return null; }
+      return toTicket(data[0]);
+    }
     const { data: code, error: codeError } = await supabase.rpc('next_ticket_code', { p_priority: priority });
     if (codeError || !code) {
       console.error('next_ticket_code', codeError);
@@ -408,43 +419,27 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
     if (error) console.error('updateQueueRules', error);
   }, []);
 
-  const addUser = useCallback(async (user: Omit<SystemUser, 'id'>) => {
-    const { error } = await supabase.from('system_users').insert({
-      name: user.name,
-      email: user.email,
-      password: user.password,
-      role: user.role,
-      active: user.active,
-      doctor_id: user.doctorId ?? null,
+  const saveUser = useCallback(async (id: string | null, data: Partial<SystemUser>) => {
+    const { error } = await supabase.rpc('manage_clinic_user', {
+      p_id: id as string, p_name: data.name ?? '', p_email: data.email ?? '',
+      p_role: data.role === 'patient' ? 'assistant' : data.role ?? 'receptionist',
+      p_active: data.active ?? true, p_doctor_id: (data.doctorId || null) as string,
     });
-    if (error) console.error('addUser', error);
+    if (error) { toast.error(error.message); return false; }
+    const { data: list } = await supabase.rpc('list_clinic_users');
+    setUsers((list ?? []).map(toUser));
+    toast.success('Acesso salvo. O usuário deve ativar a conta com seu e-mail.');
+    return true;
   }, []);
-
-  const updateUser = useCallback(async (id: string, data: Partial<SystemUser>) => {
-    const patch: {
-      name?: string;
-      email?: string;
-      password?: string;
-      role?: string;
-      active?: boolean;
-      doctor_id?: string | null;
-    } = {};
-    if (data.name !== undefined) patch.name = data.name;
-    if (data.email !== undefined) patch.email = data.email;
-    if (data.password !== undefined) patch.password = data.password;
-    if (data.role !== undefined) patch.role = data.role;
-    if (data.active !== undefined) patch.active = data.active;
-    if (data.doctorId !== undefined) patch.doctor_id = data.doctorId || null;
-    const { error } = await supabase.from('system_users').update(patch).eq('id', id);
-    if (error) console.error('updateUser', error);
-  }, []);
-
+  const addUser = useCallback((data: Omit<SystemUser, 'id'>) => saveUser(null, data), [saveUser]);
+  const updateUser = useCallback((id: string, data: Partial<SystemUser>) => {
+    const current = users.find(u => u.id === id);
+    return saveUser(id, { ...current, ...data });
+  }, [users, saveUser]);
   const toggleUserActive = useCallback(async (id: string) => {
     const current = users.find(u => u.id === id);
-    if (!current) return;
-    const { error } = await supabase.from('system_users').update({ active: !current.active }).eq('id', id);
-    if (error) console.error('toggleUserActive', error);
-  }, [users]);
+    if (current) await saveUser(id, { ...current, active: !current.active });
+  }, [users, saveUser]);
 
   const addDoctorType = useCallback(async (name: string) => {
     const { error } = await supabase.from('doctor_types').insert({ name });

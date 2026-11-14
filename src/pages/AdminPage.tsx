@@ -44,7 +44,7 @@ const AdminPage = () => {
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-  const [userPassword, setUserPassword] = useState('');
+  const [savingUser, setSavingUser] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('receptionist');
   const [userDoctorId, setUserDoctorId] = useState('');
 
@@ -71,7 +71,6 @@ const AdminPage = () => {
     setEditingUser(null);
     setUserName('');
     setUserEmail('');
-    setUserPassword('');
     setUserRole('receptionist');
     setUserDoctorId('');
     setShowUserForm(true);
@@ -81,32 +80,18 @@ const AdminPage = () => {
     setEditingUser(u);
     setUserName(u.name);
     setUserEmail(u.email);
-    setUserPassword('');
     setUserRole(u.role);
     setUserDoctorId(u.doctorId || '');
     setShowUserForm(true);
   };
 
-  const handleSaveUser = () => {
-    if (!userName || !userEmail) return;
-    if (editingUser) {
-      const data: Partial<SystemUser> = { name: userName, email: userEmail, role: userRole };
-      if (userPassword) data.password = userPassword;
-      if (userRole === 'doctor') data.doctorId = userDoctorId || undefined;
-      else data.doctorId = undefined;
-      updateUser(editingUser.id, data);
-    } else {
-      if (!userPassword) return;
-      addUser({
-        name: userName,
-        email: userEmail,
-        password: userPassword,
-        role: userRole,
-        active: true,
-        doctorId: userRole === 'doctor' ? userDoctorId || undefined : undefined,
-      });
-    }
-    setShowUserForm(false);
+  const handleSaveUser = async () => {
+    if (!userName || !userEmail || (userRole === 'doctor' && !userDoctorId)) return;
+    setSavingUser(true);
+    const data = { name: userName, email: userEmail, role: userRole, doctorId: userRole === 'doctor' ? userDoctorId : '', active: editingUser?.active ?? true, password: '' };
+    const ok = editingUser ? await updateUser(editingUser.id, data) : await addUser(data);
+    setSavingUser(false);
+    if (ok) setShowUserForm(false);
   };
 
   const handleAddOffice = () => {
@@ -459,12 +444,9 @@ const AdminPage = () => {
             </div>
             <div>
               <label className="text-sm font-medium text-foreground block mb-1">Email/Login *</label>
-              <Input placeholder="email@cliniplus.com" value={userEmail} onChange={e => setUserEmail(e.target.value)} />
+              <Input type="email" disabled={!!editingUser} placeholder="email@cliniplus.com" value={userEmail} onChange={e => setUserEmail(e.target.value)} />
             </div>
-            <div>
-              <label className="text-sm font-medium text-foreground block mb-1">{editingUser ? 'Nova Senha (deixe vazio para manter)' : 'Senha *'}</label>
-              <Input type="password" placeholder="••••••" value={userPassword} onChange={e => setUserPassword(e.target.value)} />
-            </div>
+            <p className="text-sm text-muted-foreground">O usuário define sua senha em “Ativar minha conta” e confirma o e-mail. Senhas não ficam visíveis para a equipe.</p>
             <div>
               <label className="text-sm font-medium text-foreground block mb-1">Perfil de Acesso *</label>
               <Select value={userRole} onValueChange={v => setUserRole(v as UserRole)}>
@@ -479,7 +461,7 @@ const AdminPage = () => {
             </div>
             {userRole === 'doctor' && (
               <div>
-                <label className="text-sm font-medium text-foreground block mb-1">Vincular ao Médico</label>
+                <label className="text-sm font-medium text-foreground block mb-1">Vincular ao Médico *</label>
                 <Select value={userDoctorId} onValueChange={setUserDoctorId}>
                   <SelectTrigger><SelectValue placeholder="Selecione o médico" /></SelectTrigger>
                   <SelectContent>
@@ -494,7 +476,7 @@ const AdminPage = () => {
               </div>
             )}
             <div className="flex gap-2">
-              <Button onClick={handleSaveUser} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={!userName || !userEmail || (!editingUser && !userPassword)}>
+              <Button onClick={handleSaveUser} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 gap-2" disabled={savingUser || !userName || !userEmail || (userRole === 'doctor' && !userDoctorId)}>
                 <Save className="w-4 h-4" /> {editingUser ? 'Salvar' : 'Criar Usuário'}
               </Button>
               <Button variant="outline" onClick={() => setShowUserForm(false)} className="gap-2">

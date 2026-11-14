@@ -87,3 +87,6 @@
 .animate-slide-in {
   animation: slideIn 0.4s ease-out;
 }
+
+:root { --google-background: #FFFFFF; --google-border: #747775; --google-text: #1F1F1F; }
+.google-sign-in { background: var(--google-background); border-color: var(--google-border); color: var(--google-text); font-weight: 500; }

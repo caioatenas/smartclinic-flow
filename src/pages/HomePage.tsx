@@ -1,8 +1,12 @@
 import { useNavigate } from 'react-router-dom';
-import { Activity } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { canAccess } from '@/lib/access';
+import { Button } from '@/components/ui/button';
+import { Activity, LogOut, LogIn } from 'lucide-react';
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const { user, profile, role, loading, signOut } = useAuth();
 
   const roles = [
     { label: 'Totem Paciente', path: '/kiosk', icon: '🖥️', desc: 'Gerar senha de atendimento', color: 'bg-primary text-primary-foreground' },
@@ -25,17 +29,18 @@ const HomePage = () => {
         <p className="text-muted-foreground text-lg">Sistema de Gestão de Filas e Atendimentos</p>
       </div>
 
+      {!loading && <div className="mb-6 text-center space-y-2">{user ? <><p className="text-muted-foreground">{profile?.name || 'Minha conta'}{!role && ' — acesso pendente ou desativado'}</p><Button variant="outline" onClick={() => void signOut()}><LogOut className="size-4" /> Sair</Button></> : <Button onClick={() => navigate('/login')}><LogIn className="size-4" /> Entrar como equipe</Button>}</div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-4xl w-full">
-        {roles.map((role) => (
-          <button
+        {roles.filter(item => canAccess(role, item.path, profile?.doctor_id)).map((role) => (
+          <Button
             key={role.path}
             onClick={() => navigate(role.path)}
-            className={`${role.color} kiosk-btn flex flex-col items-center gap-3 text-center`}
+            className={`${role.color} h-auto whitespace-normal kiosk-btn flex flex-col items-center gap-3 text-center`}
           >
             <span className="text-4xl">{role.icon}</span>
             <span className="text-xl font-bold">{role.label}</span>
             <span className="text-sm opacity-80">{role.desc}</span>
-          </button>
+          </Button>
         ))}
       </div>
     </div>

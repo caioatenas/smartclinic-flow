@@ -4,6 +4,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClinicProvider } from "@/lib/clinic-context";
+import { AuthProvider } from '@/lib/auth-context';
+import { StaffLayout } from '@/components/AccessGate';
+import LoginPage from './pages/LoginPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import HomePage from "./pages/HomePage";
 import KioskPage from "./pages/KioskPage";
 import WaitPanelPage from "./pages/WaitPanelPage";
@@ -20,21 +24,27 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <AuthProvider>
       <ClinicProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/kiosk" element={<KioskPage />} />
             <Route path="/panel" element={<WaitPanelPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route element={<StaffLayout />}>
             <Route path="/reception" element={<ReceptionPage />} />
             <Route path="/assistant" element={<AssistantPage />} />
             <Route path="/doctor" element={<DoctorPage />} />
             <Route path="/doctor/:doctorId" element={<DoctorPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </ClinicProvider>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

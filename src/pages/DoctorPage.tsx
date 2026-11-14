@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '@/lib/auth-context';
 import { useClinic } from '@/lib/clinic-context';
 import { ArrowLeft, Activity, FileText, Printer, Clock, DoorOpen, Stethoscope } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,8 @@ const DoctorPage = () => {
   }, []);
 
   // If accessed via /doctor (no id), show doctor selection
-  const activeDoctorId = doctorId || selectedDoctorId;
+  const { profile, role } = useAuth();
+  const activeDoctorId = role === 'doctor' ? profile?.doctor_id || '' : doctorId || selectedDoctorId;
   const doctor = doctors.find(d => d.id === activeDoctorId);
   const specialty = specialties.find(s => s.id === doctor?.specialtyId);
   const queue = activeDoctorId ? getDoctorQueue(activeDoctorId) : [];
@@ -80,6 +82,7 @@ const DoctorPage = () => {
   };
 
   // Doctor selection screen (when no doctorId param or doctor not found)
+  if (!doctor && role === 'doctor') return <div className="p-8 text-center text-muted-foreground">Seu usuário ainda não foi vinculado a um médico. Peça ao administrador para concluir o cadastro.</div>;
   if (!doctor) {
     return (
       <div className="min-h-screen bg-background p-6">
