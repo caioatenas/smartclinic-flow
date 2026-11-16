@@ -6,3 +6,8 @@
 - [x] Testar acessos reais de quatro perfis, cadastro administrativo, confirmação de conta e sincronização pública.
 
 Limites da verificação: envio/recebimento real dos e-mails de recuperação e o redirecionamento externo de Google/Lovable não foram exercitados.
+
+# Encaminhamentos entre salas
+- [ ] Criar encaminhamentos seguros com fila por sala e retorno ao médico.
+- [ ] Conectar painel médico, salas cadastradas e chamadas na TV.
+- [ ] Verificar permissões, fluxo real e apresentação em telas pequenas.

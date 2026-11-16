@@ -52,7 +52,8 @@ export function useCallAnnouncer(called: Ticket[], placeOf: (t: Ticket) => strin
     if (busy.current) return;
     busy.current = true;
     while (queue.current.length) {
-      const a = queue.current.shift()!;
+      const a = queue.current.shift();
+      if (!a) break;
       setCurrent(a);
       if (enabledRef.current && ctx.current) {
         chime(ctx.current);
@@ -71,15 +72,17 @@ export function useCallAnnouncer(called: Ticket[], placeOf: (t: Ticket) => strin
 
   useEffect(() => {
     if (!ready) return;
-    const keys = called.map(t => `${t.id}:${t.status}`);
+    const keyOf = (t: Ticket) => `${t.id}:${t.status}:${t.calledAt?.getTime() ?? ''}`;
+    const keys = called.map(keyOf);
     if (!seen.current) {
       seen.current = new Set(keys); // don't announce calls that existed before the TV opened
       return;
     }
-    const fresh = called.filter(t => !seen.current!.has(`${t.id}:${t.status}`));
+    const seenKeys = seen.current;
+    const fresh = called.filter(t => !seenKeys.has(keyOf(t)));
     fresh.forEach(t => {
-      const key = `${t.id}:${t.status}`;
-      seen.current!.add(key);
+      const key = keyOf(t);
+      seenKeys.add(key);
       queue.current.push({ key, ticket: t, place: placeOf(t) });
     });
     if (fresh.length) run();

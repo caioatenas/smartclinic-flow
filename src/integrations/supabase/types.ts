@@ -277,6 +277,70 @@ export type Database = {
         }
         Relationships: []
       }
+      referrals: {
+        Row: {
+          called_at: string | null
+          completed_at: string | null
+          created_at: string
+          doctor_id: string
+          handled_by: string | null
+          id: string
+          office_id: string
+          outcome: string
+          reason: string
+          status: string
+          ticket_id: string
+        }
+        Insert: {
+          called_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          doctor_id: string
+          handled_by?: string | null
+          id?: string
+          office_id: string
+          outcome?: string
+          reason: string
+          status?: string
+          ticket_id: string
+        }
+        Update: {
+          called_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          doctor_id?: string
+          handled_by?: string | null
+          id?: string
+          office_id?: string
+          outcome?: string
+          reason?: string
+          status?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_doctor_id_fkey"
+            columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_invitations: {
         Row: {
           active: boolean
@@ -525,6 +589,61 @@ export type Database = {
           to: "tickets"
           isOneToOne: false
           isSetofReturn: true
+        }
+      }
+      call_next_room: {
+        Args: { p_office_id: string }
+        Returns: {
+          called_at: string | null
+          completed_at: string | null
+          created_at: string
+          doctor_id: string
+          handled_by: string | null
+          id: string
+          office_id: string
+          outcome: string
+          reason: string
+          status: string
+          ticket_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referrals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      complete_referral: {
+        Args: { p_id: string; p_outcome: string }
+        Returns: undefined
+      }
+      create_referral: {
+        Args: {
+          p_complaint?: string
+          p_diagnosis?: string
+          p_observations?: string
+          p_office_id: string
+          p_reason: string
+          p_ticket_id: string
+        }
+        Returns: {
+          called_at: string | null
+          completed_at: string | null
+          created_at: string
+          doctor_id: string
+          handled_by: string | null
+          id: string
+          office_id: string
+          outcome: string
+          reason: string
+          status: string
+          ticket_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referrals"
+          isOneToOne: true
+          isSetofReturn: false
         }
       }
       has_role: {

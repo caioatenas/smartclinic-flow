@@ -8,3 +8,4 @@
 
 - Staff authentication uses Cloud Auth; authorization comes from protected user_roles plus active profiles, never browser storage or legacy system_users. Staff invitations are managed through admin-validated RPCs and become access only after email confirmation.
 - Public TV and kiosk read only queue_display (no CPF, phone, prescriptions or records); the kiosk creates tickets through a limited RPC. Private operational tables are staff-only, and clinical writes and doctor calls require the linked physician.
+- Room referrals use the existing office catalog and atomic create/call/complete RPCs; clinical reasons stay private, and completion returns the original ticket to its referring physician rather than creating another patient or ticket.

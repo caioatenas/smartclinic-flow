@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
 import { toast } from 'sonner';
+import type { Referral } from './referrals';
 import type { Json } from '@/integrations/supabase/types';
 import {
   Ticket, Specialty, Doctor, DoctorType, Office, Priority, MedicalRecord,
@@ -140,6 +141,10 @@ function liveRows<T extends { id: string }>(
 // ---------- Context ----------
 
 interface ClinicContextType {
+  referrals: Referral[];
+  createReferral: (ticketId: string, officeId: string, reason: string, notes: { complaint: string; observations: string; diagnosis: string }) => Promise<boolean>;
+  callNextRoom: (officeId: string) => Promise<boolean>;
+  completeReferral: (id: string, outcome: string) => Promise<boolean>;
   tickets: Ticket[];
   specialties: Specialty[];
   doctors: Doctor[];
@@ -199,6 +204,7 @@ const sortByPriority = (list: Ticket[]) => {
 
 export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const { role, user } = useAuth();
+  const [referrals, setReferrals] = useState<Referral[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -213,12 +219,12 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   // Load everything once, then keep every screen in sync through realtime.
   useEffect(() => {
     let active = true;
-    setTickets([]); setRecords([]); setPrescriptions([]); setAppointments([]); setUsers([]); setConnected(false);
+    setTickets([]); setRecords([]); setPrescriptions([]); setAppointments([]); setUsers([]); setReferrals([]); setConnected(false);
     const clinical = role === 'admin' || role === 'doctor';
     const empty = Promise.resolve({ data: [], error: null });
 
     async function load() {
-      const [t, r, p, a, d, dt, o, u, q] = await Promise.all([
+      const [t, r, p, a, d, dt, o, u, q, f] = await Promise.all([
         role ? supabase.from('tickets').select('*') : supabase.from('queue_display').select('*'),
         clinical ? supabase.from('medical_records').select('*') : empty,
         clinical ? supabase.from('prescriptions').select('*') : empty,
@@ -228,9 +234,11 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
         supabase.from('offices').select('*'),
         role === 'admin' ? supabase.rpc('list_clinic_users') : empty,
         supabase.from('queue_rules').select('*').eq('id', 1).maybeSingle(),
+        role === 'admin' || role === 'doctor' || role === 'assistant' ? supabase.from('referrals').select('*') : empty,
       ]);
       if (!active) return;
       setTickets((t.data ?? []).map(toTicket));
+      setReferrals((f.data ?? []) as Referral[]);
       setRecords((r.data ?? []).map(toRecord));
       setPrescriptions((p.data ?? []).map(toPrescription));
       setAppointments((a.data ?? []).map(toAppointment));
@@ -250,6 +258,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, liveRows(setAppointments, toAppointment))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'doctors' }, liveRows(setDoctors, toDoctor))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'offices' }, liveRows(setOffices, toOffice))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'referrals' }, liveRows(setReferrals, row => row as Referral))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'doctor_types' }, liveRows(setDoctorTypes, toDoctorType))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_invitations' }, () => { if (role === 'admin') void supabase.rpc('list_clinic_users').then(({ data }) => { if (active) setUsers((data ?? []).map(toUser)); }); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, liveRows(setPrescriptions, toPrescription))
@@ -280,6 +289,25 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   }, [role, user?.id]);
 
   // ---------- Queue / tickets ----------
+
+  const createReferral = useCallback(async (ticketId: string, officeId: string, reason: string, notes: { complaint: string; observations: string; diagnosis: string }) => {
+    const { error } = await supabase.rpc('create_referral', { p_ticket_id: ticketId, p_office_id: officeId, p_reason: reason, p_complaint: notes.complaint, p_observations: notes.observations, p_diagnosis: notes.diagnosis });
+    if (error) { toast.error(error.message); return false; }
+    toast.success('Paciente encaminhado.');
+    return true;
+  }, []);
+  const callNextRoom = useCallback(async (officeId: string) => {
+    const { data, error } = await supabase.rpc('call_next_room', { p_office_id: officeId });
+    if (error) { toast.error(error.message); return false; }
+    if (!data?.id) { toast.info('Nenhum paciente aguardando nesta sala.'); return false; }
+    return true;
+  }, []);
+  const completeReferral = useCallback(async (id: string, outcome: string) => {
+    const { error } = await supabase.rpc('complete_referral', { p_id: id, p_outcome: outcome });
+    if (error) { toast.error(error.message); return false; }
+    toast.success('Paciente devolvido à fila do médico.');
+    return true;
+  }, []);
 
   const createTicket = useCallback(async (
     priority: Priority,
@@ -577,6 +605,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ClinicContext.Provider value={{
+      referrals, createReferral, callNextRoom, completeReferral,
       tickets, specialties: SPECIALTIES, doctors, doctorTypes, offices, records, prescriptions,
       appointments, queueRules, users, connected,
       createTicket,

@@ -3,6 +3,7 @@ export function canAccess(role: StaffRole | null, path: string, doctorId?: strin
   if (['/', '/login', '/reset-password', '/panel', '/kiosk'].includes(path)) return true;
   if (!role) return false;
   if (role === 'admin') return true;
+  if (path === '/rooms' || /^\/rooms\/[^/]+$/.test(path)) return role === 'doctor' || role === 'assistant';
   if (role === 'doctor') return path === '/doctor' || (!!doctorId && path === `/doctor/${doctorId}`);
   return path === (role === 'receptionist' ? '/reception' : '/assistant');
 }

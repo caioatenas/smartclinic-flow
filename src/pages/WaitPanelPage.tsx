@@ -17,7 +17,7 @@ const WaitPanelPage = () => {
   }, []);
 
   const calledReception = tickets.filter(t => t.status === 'em_atendimento_recepcao');
-  const calledDoctor = tickets.filter(t => t.status === 'em_atendimento_medico');
+  const calledDoctor = tickets.filter(t => t.status === 'em_atendimento_medico' || t.status === 'em_atendimento_sala');
   const waitingReception = tickets
     .filter(t => t.status === 'aguardando_recepcao')
     .sort((a, b) => {
@@ -27,7 +27,7 @@ const WaitPanelPage = () => {
     })
     .slice(0, 6);
   const waitingDoctor = tickets
-    .filter(t => t.status === 'aguardando_medico')
+    .filter(t => t.status === 'aguardando_medico' || t.status === 'aguardando_sala')
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
     .slice(0, 6);
   const finalizados = tickets
@@ -89,9 +89,9 @@ const WaitPanelPage = () => {
                 <div className="text-panel-foreground/70 mt-2">
                   {t.status === 'em_atendimento_recepcao'
                     ? '📋 Recepção'
-                    : `${getSpecialty(t.specialtyId)?.name} • ${t.room || ''}`}
+                    : t.status === 'em_atendimento_sala' ? t.officeName : `${getSpecialty(t.specialtyId)?.name} • ${t.room || ''}`}
                 </div>
-                {t.status === 'em_atendimento_medico' && (
+                {(t.status === 'em_atendimento_medico' || t.status === 'em_atendimento_sala') && (
                   <>
                     <div className="text-panel-foreground/50 text-sm mt-1">{getDoctor(t.doctorId)?.name}</div>
                     {t.officeName && (
@@ -114,7 +114,7 @@ const WaitPanelPage = () => {
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Waiting for reception */}
         <div>
-          <h2 className="text-lg font-semibold text-yellow-400 mb-4 text-center">🟡 Aguardando Recepção</h2>
+          <h2 className="text-lg font-semibold text-warning mb-4 text-center">🟡 Aguardando Recepção</h2>
           {waitingReception.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
               {waitingReception.map(t => (
@@ -137,14 +137,14 @@ const WaitPanelPage = () => {
 
         {/* Waiting for doctor */}
         <div>
-          <h2 className="text-lg font-semibold text-blue-400 mb-4 text-center">🔵 Aguardando Médico</h2>
+          <h2 className="text-lg font-semibold text-info mb-4 text-center">🔵 Aguardando Médico / Sala</h2>
           {waitingDoctor.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
               {waitingDoctor.map(t => (
                 <div key={t.id} className="bg-panel-foreground/10 rounded-xl p-4 text-center">
                   <div className="text-2xl font-bold text-panel-foreground">{t.code}</div>
                   <div className="text-sm font-medium text-panel-foreground/80 mt-1">{t.patientName}</div>
-                  <div className="text-xs text-panel-foreground/50 mt-1">{getSpecialty(t.specialtyId)?.name} • {t.room}</div>
+                  <div className="text-xs text-panel-foreground/50 mt-1">{t.status === 'aguardando_sala' ? t.officeName : getSpecialty(t.specialtyId)?.name}</div>
                 </div>
               ))}
             </div>

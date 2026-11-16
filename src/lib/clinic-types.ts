@@ -1,5 +1,5 @@
 export type Priority = 'normal' | 'priority' | 'agendado';
-export type TicketStatus = 'aguardando_recepcao' | 'em_atendimento_recepcao' | 'aguardando_medico' | 'em_atendimento_medico' | 'finalizado';
+export type TicketStatus = 'aguardando_recepcao' | 'em_atendimento_recepcao' | 'aguardando_medico' | 'em_atendimento_medico' | 'aguardando_sala' | 'em_atendimento_sala' | 'finalizado';
 export type AppointmentStatus = 'agendado' | 'checked_in' | 'cancelado';
 export type UserRole = 'patient' | 'receptionist' | 'assistant' | 'doctor' | 'admin';
 

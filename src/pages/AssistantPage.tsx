@@ -4,6 +4,7 @@ import { useClinic } from '@/lib/clinic-context';
 import { ArrowLeft, Activity, Clock, Timer, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDuration } from '@/lib/time-utils';
 import type { Ticket } from '@/lib/clinic-types';
+import { Button } from '@/components/ui/button';
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   aguardando_recepcao: { label: 'Aguardando Recepção', color: 'bg-warning/20 text-warning' },
@@ -11,6 +12,8 @@ const statusConfig: Record<string, { label: string; color: string }> = {
   aguardando_medico: { label: 'Aguardando Médico', color: 'bg-primary/20 text-primary' },
   em_atendimento_medico: { label: 'Em Consulta', color: 'bg-accent/20 text-accent' },
   finalizado: { label: 'Finalizado', color: 'bg-muted text-muted-foreground' },
+  aguardando_sala: { label: 'Aguardando Sala', color: 'bg-info/20 text-info' },
+  em_atendimento_sala: { label: 'Na Sala', color: 'bg-accent/20 text-accent' },
 };
 
 function useLiveDuration(startDate: Date | undefined, endDate: Date | undefined, active: boolean): string {
@@ -95,6 +98,7 @@ const AssistantPage = () => {
         </button>
         <Activity className="w-6 h-6 text-accent" />
         <h1 className="text-2xl font-bold text-foreground">Assistente</h1>
+        <Button variant="outline" onClick={() => navigate('/rooms')} className="ml-auto">Salas</Button>
       </div>
 
       <div className="grid grid-cols-4 gap-4 mb-8 max-w-2xl">

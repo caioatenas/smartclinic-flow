@@ -11,9 +11,10 @@ describe('staff permissions', () => {
     expect(canAccess('receptionist', '/doctor')).toBe(false);
     expect(canAccess('receptionist', '/admin')).toBe(false);
   });
-  it('limits assistants to their read-only screen', () => {
+  it('limits assistants to their screen and referral rooms', () => {
     expect(canAccess('assistant', '/assistant')).toBe(true);
     expect(canAccess('assistant', '/reception')).toBe(false);
+    expect(canAccess('assistant', '/rooms/two')).toBe(true);
   });
   it('limits a doctor to their linked identity', () => {
     expect(canAccess('doctor', '/doctor/one', 'one')).toBe(true);
@@ -22,5 +23,11 @@ describe('staff permissions', () => {
   });
   it('allows administrators all staff screens', () => {
     for (const path of ['/admin', '/reception', '/assistant', '/doctor/two']) expect(canAccess('admin', path)).toBe(true);
+  });
+  it('allows doctors and admins into rooms but rejects reception and public access', () => {
+    expect(canAccess('doctor', '/rooms/two', 'one')).toBe(true);
+    expect(canAccess('admin', '/rooms/two')).toBe(true);
+    expect(canAccess('receptionist', '/rooms/two')).toBe(false);
+    expect(canAccess(null, '/rooms')).toBe(false);
   });
 });

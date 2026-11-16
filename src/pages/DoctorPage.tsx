@@ -8,13 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import PatientHistory from '@/components/PatientHistory';
+import ReferralHistory from '@/components/ReferralHistory';
+import { referralDestinations } from '@/lib/referrals';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDuration, tempoEsperaAtual, tempoAteRecepcao, tempoNaRecepcao, tempoEsperaMedico } from '@/lib/time-utils';
 
 const DoctorPage = () => {
   const navigate = useNavigate();
   const { doctorId } = useParams<{ doctorId: string }>();
-  const { doctors, specialties, tickets, offices, getDoctorQueue, callNextDoctor, completeAttendance, addRecord, addPrescription } = useClinic();
+  const { doctors, specialties, tickets, offices, getDoctorQueue, callNextDoctor, completeAttendance, addRecord, addPrescription, createReferral } = useClinic();
   const [, setTick] = useState(0);
   const [selectedOfficeId, setSelectedOfficeId] = useState<string>('');
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(doctorId || '');
@@ -43,6 +45,21 @@ const DoctorPage = () => {
   const [prescNotes, setPrescNotes] = useState('');
   const [showPrint, setShowPrint] = useState(false);
   const [printData, setPrintData] = useState<any>(null);
+  const [showReferral, setShowReferral] = useState(false);
+  const [referralOfficeId, setReferralOfficeId] = useState('');
+  const [referralReason, setReferralReason] = useState('');
+  const [referring, setReferring] = useState(false);
+  const destinations = referralDestinations(offices, currentPatient?.officeId || selectedOfficeId);
+  const handleRefer = async () => {
+    if (!currentPatient || !destinations.some(o => o.id === referralOfficeId)) return;
+    setReferring(true);
+    try {
+      if (await createReferral(currentPatient.id, referralOfficeId, referralReason, { complaint, observations, diagnosis })) {
+        setShowReferral(false); setReferralOfficeId(''); setReferralReason('');
+        setComplaint(''); setObservations(''); setDiagnosis('');
+      }
+    } finally { setReferring(false); }
+  };
 
   const handleCallNext = () => {
     if (activeDoctorId && selectedOfficeId && selectedOffice) {
@@ -190,7 +207,7 @@ const DoctorPage = () => {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex flex-wrap items-center gap-4 mb-8">
         <button onClick={() => navigate('/doctor')} className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-6 h-6" />
         </button>
@@ -199,7 +216,8 @@ const DoctorPage = () => {
           <h1 className="text-2xl font-bold text-foreground">{doctor.name}</h1>
           <p className="text-sm text-muted-foreground">{specialty?.name} • {selectedOffice?.name}</p>
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <Button variant="outline" onClick={() => navigate('/rooms')}><DoorOpen className="size-4" /> Salas</Button>
           <button onClick={() => setSelectedOfficeId('')} className="text-xs text-muted-foreground hover:text-foreground underline">
             Trocar consultório
           </button>
@@ -225,7 +243,8 @@ const DoctorPage = () => {
                   )}
                   <TimeInfo ticket={currentPatient} />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => setShowReferral(true)} disabled={referring || !destinations.length}><DoorOpen className="size-4" /> Encaminhar</Button>
                   <Button variant="outline" onClick={() => setShowPrescription(true)} className="gap-2">
                     <FileText className="w-4 h-4" /> Receita
                   </Button>
@@ -244,11 +263,12 @@ const DoctorPage = () => {
                   <label className="text-sm font-medium text-foreground">Diagnóstico</label>
                   <Textarea placeholder="Diagnóstico..." value={diagnosis} onChange={e => setDiagnosis(e.target.value)} />
                 </div>
-                <Button onClick={handleFinish} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                <Button onClick={handleFinish} disabled={referring} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
                   Finalizar Atendimento
                 </Button>
               </div>
               <PatientHistory ticketId={currentPatient.id} cpf={currentPatient.patientCpf} name={currentPatient.patientName} />
+              <ReferralHistory ticketId={currentPatient.id} />
             </div>
           ) : (
             <div className="panel-card bg-card border border-border text-center py-16">
@@ -280,6 +300,19 @@ const DoctorPage = () => {
       </div>
 
       {/* Receita Dialog */}
+      <Dialog open={showReferral} onOpenChange={open => { if (!referring) setShowReferral(open); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Encaminhar paciente</DialogTitle></DialogHeader>
+          <label className="text-sm font-medium">Sala de destino</label>
+          <Select value={referralOfficeId} onValueChange={setReferralOfficeId} disabled={referring}>
+            <SelectTrigger aria-label="Sala de destino"><SelectValue placeholder="Selecione a sala" /></SelectTrigger>
+            <SelectContent>{destinations.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <label htmlFor="referral-reason" className="text-sm font-medium">Motivo do encaminhamento</label>
+          <Textarea id="referral-reason" maxLength={2000} value={referralReason} onChange={e => setReferralReason(e.target.value)} disabled={referring} />
+          <Button onClick={() => void handleRefer()} disabled={referring || !referralReason.trim() || !destinations.some(o => o.id === referralOfficeId)}>Confirmar encaminhamento</Button>
+        </DialogContent>
+      </Dialog>
       <Dialog open={showPrescription} onOpenChange={setShowPrescription}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Gerar Receita Médica</DialogTitle></DialogHeader>
