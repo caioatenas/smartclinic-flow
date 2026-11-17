@@ -232,7 +232,7 @@ const DoctorPage = () => {
         <div className="lg:col-span-2">
           {currentPatient ? (
             <div className="panel-card bg-card border border-border animate-slide-in">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <div>
                   <span className="text-3xl font-bold text-accent">{currentPatient.code}</span>
                   <h3 className="text-xl font-semibold text-foreground mt-1">{currentPatient.patientName}</h3>
