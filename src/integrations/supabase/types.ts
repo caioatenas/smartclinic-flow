@@ -53,6 +53,100 @@ export type Database = {
         }
         Relationships: []
       }
+      bed_movements: {
+        Row: {
+          created_at: string
+          from_bed_id: string | null
+          id: string
+          performed_by: string
+          reason: string
+          ticket_id: string
+          to_bed_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          from_bed_id?: string | null
+          id?: string
+          performed_by: string
+          reason: string
+          ticket_id: string
+          to_bed_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          from_bed_id?: string | null
+          id?: string
+          performed_by?: string
+          reason?: string
+          ticket_id?: string
+          to_bed_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bed_movements_from_bed_id_fkey"
+            columns: ["from_bed_id"]
+            isOneToOne: false
+            referencedRelation: "beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bed_movements_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bed_movements_to_bed_id_fkey"
+            columns: ["to_bed_id"]
+            isOneToOne: false
+            referencedRelation: "beds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      beds: {
+        Row: {
+          availability: string
+          id: string
+          name: string
+          occupied_at: string | null
+          office_id: string
+          ticket_id: string | null
+        }
+        Insert: {
+          availability?: string
+          id?: string
+          name: string
+          occupied_at?: string | null
+          office_id: string
+          ticket_id?: string | null
+        }
+        Update: {
+          availability?: string
+          id?: string
+          name?: string
+          occupied_at?: string | null
+          office_id?: string
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beds_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "beds_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       doctor_types: {
         Row: {
           created_at: string
@@ -122,21 +216,130 @@ export type Database = {
         }
         Relationships: []
       }
+      medication_administrations: {
+        Row: {
+          administered_at: string
+          created_at: string
+          dose: string
+          id: string
+          medication: string
+          notes: string
+          recorded_by: string
+          referral_id: string
+          route: string
+        }
+        Insert: {
+          administered_at: string
+          created_at?: string
+          dose: string
+          id?: string
+          medication: string
+          notes?: string
+          recorded_by: string
+          referral_id: string
+          route: string
+        }
+        Update: {
+          administered_at?: string
+          created_at?: string
+          dose?: string
+          id?: string
+          medication?: string
+          notes?: string
+          recorded_by?: string
+          referral_id?: string
+          route?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medication_administrations_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "referrals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nursing_triages: {
+        Row: {
+          alerts: string
+          created_at: string
+          diastolic: number
+          id: string
+          measured_at: string
+          notes: string
+          oxygen: number
+          pain: number
+          pulse: number
+          recorded_by: string
+          referral_id: string
+          respiratory_rate: number
+          risk: string
+          systolic: number
+          temperature: number
+        }
+        Insert: {
+          alerts?: string
+          created_at?: string
+          diastolic: number
+          id?: string
+          measured_at: string
+          notes?: string
+          oxygen: number
+          pain: number
+          pulse: number
+          recorded_by: string
+          referral_id: string
+          respiratory_rate: number
+          risk: string
+          systolic: number
+          temperature: number
+        }
+        Update: {
+          alerts?: string
+          created_at?: string
+          diastolic?: number
+          id?: string
+          measured_at?: string
+          notes?: string
+          oxygen?: number
+          pain?: number
+          pulse?: number
+          recorded_by?: string
+          referral_id?: string
+          respiratory_rate?: number
+          risk?: string
+          systolic?: number
+          temperature?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nursing_triages_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "referrals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offices: {
         Row: {
           active: boolean
+          care_type: string
           created_at: string
           id: string
           name: string
         }
         Insert: {
           active?: boolean
+          care_type?: string
           created_at?: string
           id?: string
           name: string
         }
         Update: {
           active?: boolean
+          care_type?: string
           created_at?: string
           id?: string
           name?: string
@@ -691,6 +894,15 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
         }[]
       }
+      manage_bed: {
+        Args: {
+          p_availability: string
+          p_id: string
+          p_name: string
+          p_office_id: string
+        }
+        Returns: undefined
+      }
       manage_clinic_user: {
         Args: {
           p_active: boolean
@@ -702,8 +914,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      move_patient_bed: {
+        Args: { p_reason: string; p_ticket_id: string; p_to_bed_id: string }
+        Returns: undefined
+      }
       next_ticket_code: { Args: { p_priority: string }; Returns: string }
       own_doctor: { Args: never; Returns: string }
+      record_nursing_care: {
+        Args: { p_data: Json; p_kind: string; p_referral_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "doctor" | "receptionist" | "assistant"

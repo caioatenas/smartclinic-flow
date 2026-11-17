@@ -36,6 +36,7 @@ export interface Office {
   id: string;
   name: string;
   active: boolean;
+  careType?: 'general' | 'medication' | 'triage';
 }
 
 export interface DoctorType {

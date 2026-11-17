@@ -1,0 +1,7 @@
+CREATE FUNCTION public.guard_office_care_type() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$ BEGIN IF NEW.care_type<>OLD.care_type AND EXISTS(SELECT 1 FROM public.referrals WHERE office_id=NEW.id AND status='em_atendimento') THEN RAISE EXCEPTION 'Conclua o atendimento antes de alterar o tipo da sala.'; END IF; RETURN NEW; END $$;
+CREATE TRIGGER guard_office_care_type BEFORE UPDATE ON public.offices FOR EACH ROW EXECUTE FUNCTION public.guard_office_care_type();
+CREATE FUNCTION public.validate_nursing_values() RETURNS trigger LANGUAGE plpgsql SET search_path=public AS $$ BEGIN
+ IF TG_TABLE_NAME='nursing_triages' THEN
+ IF NEW.systolic NOT BETWEEN 1 AND 400 OR NEW.diastolic NOT BETWEEN 1 AND 300 OR NEW.pulse NOT BETWEEN 1 AND 350 OR NEW.respiratory_rate NOT BETWEEN 1 AND 150 OR NEW.temperature NOT BETWEEN 20 AND 50 OR NEW.oxygen NOT BETWEEN 0 AND 100 OR NEW.pain NOT BETWEEN 0 AND 10 OR (NEW.risk<>'sem_alerta' AND length(trim(NEW.alerts))=0) OR length(NEW.alerts)>4000 THEN RAISE EXCEPTION 'Confira sinais vitais e alertas.'; END IF;
+ END IF; RETURN NEW; END $$;
+CREATE TRIGGER validate_triage BEFORE INSERT ON public.nursing_triages FOR EACH ROW EXECUTE FUNCTION public.validate_nursing_values();

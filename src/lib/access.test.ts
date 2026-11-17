@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { canAccess } from './access';
 describe('staff permissions', () => {
+  it('allows staff to view beds but rejects anonymous access', () => {
+    for (const role of ['admin','assistant','doctor','receptionist'] as const) expect(canAccess(role,'/beds')).toBe(true);
+    expect(canAccess(null,'/beds')).toBe(false);
+  });
   it('keeps TV and kiosk public but blocks staff pages', () => {
     expect(canAccess(null, '/panel')).toBe(true);
     expect(canAccess(null, '/kiosk')).toBe(true);

@@ -13,3 +13,10 @@ Limites da verificação: envio/recebimento real dos e-mails de recuperação e 
 - [x] Verificar permissões, fluxo real e apresentação em telas pequenas.
 
 Fluxo inicial: utiliza salas cadastradas e sempre retorna ao médico; tipos de sala e fluxos especializados não foram definidos.
+
+# Leitos, medicação e triagem
+- [x] Gestão de leitos com ocupação, disponibilidade e histórico de movimentação.
+- [x] Registro de medicação administrada com horários e conclusão.
+- [x] Triagem com sinais vitais, alertas registrados pela enfermagem e retorno ao médico.
+- [x] Verificar os três fluxos e atualização entre telas: entrada, transferência, liberação automática, registros e retorno ao médico exercitados; 14 testes passaram.
+- [ ] Concluir verificação isolada de permissões e captura do histórico médico: créditos esgotados; sessão de teste recebeu autenticação automática também no contexto considerado público, e captura do histórico não confirmou a evidência esperada.

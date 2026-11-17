@@ -1,4 +1,5 @@
 import { useClinic } from '@/lib/clinic-context';
+import { NursingCareHistory } from './NursingCare';
 
 export default function ReferralHistory({ ticketId }: { ticketId: string }) {
   const { referrals, offices } = useClinic();
@@ -10,6 +11,7 @@ export default function ReferralHistory({ ticketId }: { ticketId: string }) {
       <div className="flex flex-wrap gap-2 justify-between"><span className="font-medium">{offices.find(o => o.id === r.office_id)?.name || 'Sala indisponível'}</span><span className="text-muted-foreground">{r.status === 'concluido' ? 'Concluído' : r.status === 'em_atendimento' ? 'Em atendimento' : 'Aguardando'}</span></div>
       <p className="whitespace-pre-wrap break-words">{r.reason}</p>
       {r.outcome && <p className="whitespace-pre-wrap break-words text-muted-foreground">Conclusão: {r.outcome}</p>}
+      <NursingCareHistory referralId={r.id} />
       <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleString('pt-BR')}</p>
     </div>)}
   </section>;

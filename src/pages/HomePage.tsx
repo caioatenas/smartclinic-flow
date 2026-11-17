@@ -15,6 +15,7 @@ const HomePage = () => {
     { label: 'Assistente', path: '/assistant', icon: '👩‍💻', desc: 'Acompanhar fila e status', color: 'bg-warning text-warning-foreground' },
     { label: 'Médico', path: '/doctor', icon: '👨‍⚕️', desc: 'Atender e prescrever', color: 'bg-success text-success-foreground' },
     { label: 'Salas de Atendimento', path: '/rooms', icon: '🚪', desc: 'Encaminhamentos', color: 'bg-accent text-accent-foreground' },
+    { label: 'Gestão de Leitos', path: '/beds', icon: '🛏️', desc: 'Ocupação e movimentações', color: 'bg-info text-info-foreground' },
     { label: 'Administrador', path: '/admin', icon: '🛠️', desc: 'Configurações do sistema', color: 'bg-destructive text-destructive-foreground' },
   ];
 

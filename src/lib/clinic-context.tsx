@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './auth-context';
 import { toast } from 'sonner';
 import type { Referral } from './referrals';
+import type { Bed, BedMovement, MedicationAdministration, NursingTriage, CareType } from './nursing';
 import type { Json } from '@/integrations/supabase/types';
 import {
   Ticket, Specialty, Doctor, DoctorType, Office, Priority, MedicalRecord,
@@ -93,7 +94,7 @@ function toDoctorType(r: any): DoctorType {
 }
 
 function toOffice(r: any): Office {
-  return { id: r.id, name: r.name, active: !!r.active };
+  return { id: r.id, name: r.name, active: !!r.active, careType: r.care_type ?? 'general' };
 }
 
 function toUser(r: any): SystemUser {
@@ -141,6 +142,14 @@ function liveRows<T extends { id: string }>(
 // ---------- Context ----------
 
 interface ClinicContextType {
+  beds: Bed[];
+  bedMovements: BedMovement[];
+  administrations: MedicationAdministration[];
+  triages: NursingTriage[];
+  setOfficeCareType: (id: string, kind: CareType) => Promise<boolean>;
+  manageBed: (id: string | null, name: string, officeId: string, availability: string) => Promise<boolean>;
+  movePatientBed: (ticketId: string, bedId: string | null, reason: string) => Promise<boolean>;
+  recordNursingCare: (id: string, kind: string, data: Json) => Promise<boolean>;
   referrals: Referral[];
   createReferral: (ticketId: string, officeId: string, reason: string, notes: { complaint: string; observations: string; diagnosis: string }) => Promise<boolean>;
   callNextRoom: (officeId: string) => Promise<boolean>;
@@ -205,6 +214,10 @@ const sortByPriority = (list: Ticket[]) => {
 export function ClinicProvider({ children }: { children: React.ReactNode }) {
   const { role, user } = useAuth();
   const [referrals, setReferrals] = useState<Referral[]>([]);
+  const [beds, setBeds] = useState<Bed[]>([]);
+  const [bedMovements, setBedMovements] = useState<BedMovement[]>([]);
+  const [administrations, setAdministrations] = useState<MedicationAdministration[]>([]);
+  const [triages, setTriages] = useState<NursingTriage[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -220,11 +233,12 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true;
     setTickets([]); setRecords([]); setPrescriptions([]); setAppointments([]); setUsers([]); setReferrals([]); setConnected(false);
+    setBeds([]); setBedMovements([]); setAdministrations([]); setTriages([]);
     const clinical = role === 'admin' || role === 'doctor';
     const empty = Promise.resolve({ data: [], error: null });
 
     async function load() {
-      const [t, r, p, a, d, dt, o, u, q, f] = await Promise.all([
+      const [t, r, p, a, d, dt, o, u, q, f, b, bm, ma, nt] = await Promise.all([
         role ? supabase.from('tickets').select('*') : supabase.from('queue_display').select('*'),
         clinical ? supabase.from('medical_records').select('*') : empty,
         clinical ? supabase.from('prescriptions').select('*') : empty,
@@ -235,10 +249,16 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
         role === 'admin' ? supabase.rpc('list_clinic_users') : empty,
         supabase.from('queue_rules').select('*').eq('id', 1).maybeSingle(),
         role === 'admin' || role === 'doctor' || role === 'assistant' ? supabase.from('referrals').select('*') : empty,
+        role ? supabase.from('beds').select('*') : empty,
+        role ? supabase.from('bed_movements').select('*') : empty,
+        role && role !== 'receptionist' ? supabase.from('medication_administrations').select('*') : empty,
+        role && role !== 'receptionist' ? supabase.from('nursing_triages').select('*') : empty,
       ]);
       if (!active) return;
       setTickets((t.data ?? []).map(toTicket));
       setReferrals((f.data ?? []) as Referral[]);
+      setBeds((b.data ?? []) as Bed[]); setBedMovements((bm.data ?? []) as BedMovement[]);
+      setAdministrations((ma.data ?? []) as MedicationAdministration[]); setTriages((nt.data ?? []) as NursingTriage[]);
       setRecords((r.data ?? []).map(toRecord));
       setPrescriptions((p.data ?? []).map(toPrescription));
       setAppointments((a.data ?? []).map(toAppointment));
@@ -259,6 +279,10 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'doctors' }, liveRows(setDoctors, toDoctor))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'offices' }, liveRows(setOffices, toOffice))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'referrals' }, liveRows(setReferrals, row => row as Referral))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'beds' }, liveRows(setBeds, row => row as Bed))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bed_movements' }, liveRows(setBedMovements, row => row as BedMovement))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'medication_administrations' }, liveRows(setAdministrations, row => row as MedicationAdministration))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'nursing_triages' }, liveRows(setTriages, row => row as NursingTriage))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'doctor_types' }, liveRows(setDoctorTypes, toDoctorType))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_invitations' }, () => { if (role === 'admin') void supabase.rpc('list_clinic_users').then(({ data }) => { if (active) setUsers((data ?? []).map(toUser)); }); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, liveRows(setPrescriptions, toPrescription))
@@ -289,6 +313,22 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
   }, [role, user?.id]);
 
   // ---------- Queue / tickets ----------
+  const setOfficeCareType = useCallback(async (id: string, kind: CareType) => {
+    const { error } = await supabase.from('offices').update({ care_type: kind }).eq('id', id);
+    if (error) { toast.error(error.message); return false; } return true;
+  }, []);
+  const manageBed = useCallback(async (id: string | null, name: string, officeId: string, availability: string) => {
+    const { error } = await supabase.rpc('manage_bed', { p_id: id as string, p_name: name, p_office_id: officeId, p_availability: availability });
+    if (error) { toast.error(error.message); return false; } toast.success('Leito salvo.'); return true;
+  }, []);
+  const movePatientBed = useCallback(async (ticketId: string, bedId: string | null, reason: string) => {
+    const { error } = await supabase.rpc('move_patient_bed', { p_ticket_id: ticketId, p_to_bed_id: bedId as string, p_reason: reason });
+    if (error) { toast.error(error.message); return false; } toast.success('Movimentação registrada.'); return true;
+  }, []);
+  const recordNursingCare = useCallback(async (id: string, kind: string, data: Json) => {
+    const { error } = await supabase.rpc('record_nursing_care', { p_referral_id: id, p_kind: kind, p_data: data });
+    if (error) { toast.error(error.message); return false; } toast.success('Registro salvo.'); return true;
+  }, []);
 
   const createReferral = useCallback(async (ticketId: string, officeId: string, reason: string, notes: { complaint: string; observations: string; diagnosis: string }) => {
     const { error } = await supabase.rpc('create_referral', { p_ticket_id: ticketId, p_office_id: officeId, p_reason: reason, p_complaint: notes.complaint, p_observations: notes.observations, p_diagnosis: notes.diagnosis });
@@ -605,6 +645,7 @@ export function ClinicProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ClinicContext.Provider value={{
+      beds, bedMovements, administrations, triages, setOfficeCareType, manageBed, movePatientBed, recordNursingCare,
       referrals, createReferral, callNextRoom, completeReferral,
       tickets, specialties: SPECIALTIES, doctors, doctorTypes, offices, records, prescriptions,
       appointments, queueRules, users, connected,
